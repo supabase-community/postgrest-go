@@ -3,7 +3,6 @@ package postgrest
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -13,7 +12,7 @@ func NewClient(rawURL, schema string, headers map[string]string) Client {
 	// Create URL from rawURL
 	baseURL, err := url.Parse(rawURL)
 	if err != nil {
-		return Client{}
+		return Client{ClientError: err}
 	}
 
 	t := transport{
@@ -48,6 +47,7 @@ func NewClient(rawURL, schema string, headers map[string]string) Client {
 }
 
 type Client struct {
+	ClientError     error
 	session         http.Client
 	clientTransport transport
 }
@@ -63,15 +63,15 @@ func (c Client) ChangeSchema(schema string) Client {
 	return c
 }
 
-func (c Client) Rpc(name string, count string, rpcBody interface{}) (string, error) {
+func (c Client) Rpc(name string, count string, rpcBody interface{}) string {
 
 	// Get body if exist
 	var byteBody []byte = nil
 	if rpcBody != nil {
 		jsonBody, err := json.Marshal(rpcBody)
 		if err != nil {
-			fmt.Println(err)
-			return "", err
+			c.ClientError = err
+			return ""
 		}
 		byteBody = jsonBody
 	}
@@ -79,8 +79,8 @@ func (c Client) Rpc(name string, count string, rpcBody interface{}) (string, err
 	readerBody := bytes.NewBuffer(byteBody)
 	req, err := http.NewRequest("POST", "/rpc/"+name, readerBody)
 	if err != nil {
-		fmt.Println(err)
-		return "", err
+		c.ClientError = err
+		return ""
 	}
 
 	if count != "" {
@@ -93,25 +93,25 @@ func (c Client) Rpc(name string, count string, rpcBody interface{}) (string, err
 
 	resp, err := c.session.Do(req)
 	if err != nil {
-		fmt.Println(err)
-		return "", err
+		c.ClientError = err
+		return ""
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println(err)
-		return "", err
+		c.ClientError = err
+		return ""
 	}
 
 	result := string(body)
 
 	err = resp.Body.Close()
 	if err != nil {
-		fmt.Println(err)
-		return "", err
+		c.ClientError = err
+		return ""
 	}
 
-	return result, nil
+	return result
 }
 
 type transport struct {
