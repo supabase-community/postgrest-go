@@ -12,9 +12,14 @@ var (
 
 func main() {
 	client := postgrest.NewClient(REST_URL, "", nil)
-	result, err := client.Rpc("add_them", "", map[string]int{"a": 9, "b": 3})
-	if err != nil {
-		panic(err)
+	if client.ClientError != nil {
+		panic(client.ClientError)
 	}
+
+	result := client.Rpc("add_them", "", map[string]int{"a": 9, "b": 3})
+	if client.ClientError != nil {
+		panic(client.ClientError)
+	}
+
 	fmt.Println(result)
 }
