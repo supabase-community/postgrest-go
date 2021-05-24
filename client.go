@@ -8,11 +8,11 @@ import (
 	"net/url"
 )
 
-func NewClient(rawURL, schema string, headers map[string]string) Client {
+func NewClient(rawURL, schema string, headers map[string]string) *Client {
 	// Create URL from rawURL
 	baseURL, err := url.Parse(rawURL)
 	if err != nil {
-		return Client{ClientError: err}
+		return &Client{ClientError: err}
 	}
 
 	t := transport{
@@ -41,7 +41,7 @@ func NewClient(rawURL, schema string, headers map[string]string) Client {
 		c.clientTransport.header.Set(key, value)
 	}
 
-	return c
+	return &c
 }
 
 type Client struct {
@@ -50,18 +50,23 @@ type Client struct {
 	clientTransport transport
 }
 
-func (c Client) TokenAuth(token string) Client {
+func (c *Client) TokenAuth(token string) *Client {
 	c.clientTransport.header.Set("Authorization", "Basic "+token)
 	return c
 }
 
-func (c Client) ChangeSchema(schema string) Client {
+func (c *Client) ChangeSchema(schema string) *Client {
 	c.clientTransport.header.Set("Accept-Profile", schema)
 	c.clientTransport.header.Set("Content-Profile", schema)
 	return c
 }
 
-func (c Client) Rpc(name string, count string, rpcBody interface{}) string {
+func (c *Client) From(table string) *QueryBuilder {
+	c.clientTransport.baseURL.Path += table
+	return &QueryBuilder{client: c}
+}
+
+func (c *Client) Rpc(name string, count string, rpcBody interface{}) string {
 
 	// Get body if exist
 	var byteBody []byte = nil
