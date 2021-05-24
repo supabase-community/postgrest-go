@@ -1,3 +1,3 @@
 # postgrest-go
 [![golangci-lint](https://github.com/muratmirgun/postgrest-go/actions/workflows/golangci.yml/badge.svg)](https://github.com/muratmirgun/postgrest-go/actions/workflows/golangci.yml)  
-[![CodeQL](https://github.com/muratmirgun/postgrest-go/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/muratmirgun/postgrest-go/actions/workflows/codeql-analysis.yml)
+[![CodeFactor](https://www.codefactor.io/repository/github/muratmirgun/postgrest-go/badge/main?s=101cab44de33934fd85cadcd9a9b535a05791670)](https://www.codefactor.io/repository/github/muratmirgun/postgrest-go/overview/main)
