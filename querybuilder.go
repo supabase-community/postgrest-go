@@ -18,8 +18,9 @@ func (q *QueryBuilder) Select(columns, count string, head bool) {
 		q.method = "GET"
 	}
 
+	query := q.client.clientTransport.baseURL.Query()
 	if columns == "" {
-		q.client.clientTransport.params.Set("select", "*")
+		query.Add("select", "*")
 	} else {
 		quoted := false
 		var resultArr = []string{}
@@ -33,8 +34,9 @@ func (q *QueryBuilder) Select(columns, count string, head bool) {
 			resultArr = append(resultArr, char)
 		}
 		result := strings.Join(resultArr, "")
-		q.client.clientTransport.params.Set("select", result)
+		query.Add("select", result)
 	}
+	q.client.clientTransport.baseURL.RawQuery = query.Encode()
 
 	if count != "" && (count == `exact` || count == `planned` || count == `estimated`) {
 		if q.client.clientTransport.header.Get("Prefer") == "" {
@@ -48,22 +50,22 @@ func (q *QueryBuilder) Select(columns, count string, head bool) {
 func (q *QueryBuilder) Upsert(value interface{}, onConflict, returning, count string) {
 	q.method = "POST"
 
+	query := q.client.clientTransport.baseURL.Query()
 	if onConflict != "" {
-		q.client.clientTransport.params.Set("on_conflict", onConflict)
+		query.Add("on_conflict", onConflict)
 	}
-	headerList := []string{"resolution=merge-duplicates"}
+	q.client.clientTransport.baseURL.RawQuery = query.Encode()
 
+	headerList := []string{"resolution=merge-duplicates"}
 	if returning == "" {
 		returning = "representation"
 	}
 	if returning == "minimal" || returning == "representation" {
 		headerList = append(headerList, "return="+returning)
 	}
-
 	if count != "" && (count == `exact` || count == `planned` || count == `estimated`) {
 		headerList = append(headerList, "count="+count)
 	}
-
 	q.client.clientTransport.header.Set("Prefer", strings.Join(headerList, ","))
 
 	// Get body if exist
@@ -83,38 +85,31 @@ func (q *QueryBuilder) Delete(returning, count string) {
 	q.method = "DELETE"
 
 	headerList := []string{}
-
 	if returning == "" {
 		returning = "representation"
 	}
 	if returning == "minimal" || returning == "representation" {
 		headerList = append(headerList, "return="+returning)
 	}
-
 	if count != "" && (count == `exact` || count == `planned` || count == `estimated`) {
 		headerList = append(headerList, "count="+count)
 	}
-
 	q.client.clientTransport.header.Set("Prefer", strings.Join(headerList, ","))
-
 }
 
 func (q *QueryBuilder) Update(value interface{}, returning, count string) {
 	q.method = "PATCH"
 
 	headerList := []string{}
-
 	if returning == "" {
 		returning = "representation"
 	}
 	if returning == "minimal" || returning == "representation" {
 		headerList = append(headerList, "return="+returning)
 	}
-
 	if count != "" && (count == `exact` || count == `planned` || count == `estimated`) {
 		headerList = append(headerList, "count="+count)
 	}
-
 	q.client.clientTransport.header.Set("Prefer", strings.Join(headerList, ","))
 
 	// Get body if exist
