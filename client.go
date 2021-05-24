@@ -1,6 +1,10 @@
 package postgrest
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 )
@@ -57,6 +61,57 @@ func (c Client) ChangeSchema(schema string) Client {
 	c.clientTransport.header.Set("Accept-Profile", schema)
 	c.clientTransport.header.Set("Content-Profile", schema)
 	return c
+}
+
+func (c Client) Rpc(name string, count string, rpcBody interface{}) (string, error) {
+
+	// Get body if exist
+	var byteBody []byte = nil
+	if rpcBody != nil {
+		jsonBody, err := json.Marshal(rpcBody)
+		if err != nil {
+			fmt.Println(err)
+			return "", err
+		}
+		byteBody = jsonBody
+	}
+
+	readerBody := bytes.NewBuffer(byteBody)
+	req, err := http.NewRequest("POST", "/rpc/"+name, readerBody)
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+
+	if count != "" {
+		if c.clientTransport.header.Get("Prefer") == "" {
+			c.clientTransport.header.Set("Prefer", "count="+count)
+		} else {
+			c.clientTransport.header.Set("Prefer", c.clientTransport.header.Get("Prefer")+",count="+count)
+		}
+	}
+
+	resp, err := c.session.Do(req)
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+
+	result := string(body)
+
+	err = resp.Body.Close()
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+
+	return result, nil
 }
 
 type transport struct {
