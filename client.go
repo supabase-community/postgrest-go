@@ -37,10 +37,8 @@ func NewClient(rawURL, schema string, headers map[string]string) Client {
 	c.clientTransport.header.Set("Content-Profile", schema)
 
 	// Set optional headers if exist
-	if headers != nil {
-		for key, value := range headers {
-			c.clientTransport.header.Set(key, value)
-		}
+	for key, value := range headers {
+		c.clientTransport.header.Set(key, value)
 	}
 
 	return c
@@ -83,7 +81,7 @@ func (c Client) Rpc(name string, count string, rpcBody interface{}) string {
 		return ""
 	}
 
-	if count != "" {
+	if count != "" && (count == `exact` || count == `planned` || count == `estimated`) {
 		if c.clientTransport.header.Get("Prefer") == "" {
 			c.clientTransport.header.Set("Prefer", "count="+count)
 		} else {
