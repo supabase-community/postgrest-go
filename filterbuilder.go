@@ -11,10 +11,8 @@ type FilterBuilder struct {
 	body   []byte
 }
 
-func (f *FilterBuilder) Execute() {
-	_ = f.body
-	_ = f.client
-	_ = f.method
+func (f *FilterBuilder) Execute() (string, error) {
+	return Execute(f.client, f.method, f.body)
 }
 
 var filterOperators = []string{"eq", "neq", "gt", "gte", "lt", "lte", "like", "ilike", "is", "in", "cs", "cd", "sl", "sr", "nxl", "nxr", "adj", "ov", "fts", "plfts", "phfts", "wfts"}

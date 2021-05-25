@@ -8,6 +8,10 @@ type TransformBuilder struct {
 	body   []byte
 }
 
+func (t *TransformBuilder) Execute() (string, error) {
+	return Execute(t.client, t.method, t.body)
+}
+
 func (t *TransformBuilder) Limit(count int, foreignTable string) *TransformBuilder {
 	query := t.client.clientTransport.baseURL.Query()
 	if foreignTable != "" {
@@ -67,10 +71,4 @@ func (t *TransformBuilder) Range(from, to int, foreignTable string) *TransformBu
 func (t *TransformBuilder) Single() *TransformBuilder {
 	t.client.clientTransport.header.Set("Accept", "application/vnd.pgrst.object+json")
 	return t
-}
-
-func (t *TransformBuilder) Execute() {
-	_ = t.body
-	_ = t.client
-	_ = t.method
 }

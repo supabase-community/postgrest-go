@@ -11,7 +11,11 @@ type QueryBuilder struct {
 	body   []byte
 }
 
-func (q *QueryBuilder) Select(columns, count string, head bool) {
+func (q *QueryBuilder) Execute() (string, error) {
+	return Execute(q.client, q.method, q.body)
+}
+
+func (q *QueryBuilder) Select(columns, count string, head bool) *QueryBuilder {
 	if head {
 		q.method = "HEAD"
 	} else {
@@ -45,9 +49,10 @@ func (q *QueryBuilder) Select(columns, count string, head bool) {
 			q.client.clientTransport.header.Set("Prefer", q.client.clientTransport.header.Get("Prefer")+",count="+count)
 		}
 	}
+	return q
 }
 
-func (q *QueryBuilder) Upsert(value interface{}, onConflict, returning, count string) {
+func (q *QueryBuilder) Upsert(value interface{}, onConflict, returning, count string) *QueryBuilder {
 	q.method = "POST"
 
 	query := q.client.clientTransport.baseURL.Query()
@@ -74,14 +79,15 @@ func (q *QueryBuilder) Upsert(value interface{}, onConflict, returning, count st
 		jsonBody, err := json.Marshal(value)
 		if err != nil {
 			q.client.ClientError = err
-			return
+			return q
 		}
 		byteBody = jsonBody
 	}
 	q.body = byteBody
+	return q
 }
 
-func (q *QueryBuilder) Delete(returning, count string) {
+func (q *QueryBuilder) Delete(returning, count string) *QueryBuilder {
 	q.method = "DELETE"
 
 	headerList := []string{}
@@ -95,9 +101,10 @@ func (q *QueryBuilder) Delete(returning, count string) {
 		headerList = append(headerList, "count="+count)
 	}
 	q.client.clientTransport.header.Set("Prefer", strings.Join(headerList, ","))
+	return q
 }
 
-func (q *QueryBuilder) Update(value interface{}, returning, count string) {
+func (q *QueryBuilder) Update(value interface{}, returning, count string) *QueryBuilder {
 	q.method = "PATCH"
 
 	headerList := []string{}
@@ -118,9 +125,10 @@ func (q *QueryBuilder) Update(value interface{}, returning, count string) {
 		jsonBody, err := json.Marshal(value)
 		if err != nil {
 			q.client.ClientError = err
-			return
+			return q
 		}
 		byteBody = jsonBody
 	}
 	q.body = byteBody
+	return q
 }
