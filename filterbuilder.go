@@ -26,151 +26,129 @@ func isOperator(value string) bool {
 	return false
 }
 
-func (f *FilterBuilder) Filter(column, operator, value string) {
+func (f *FilterBuilder) Filter(column, operator, value string) *FilterBuilder {
 	if !isOperator(operator) {
 		f.client.ClientError = fmt.Errorf("invalid filter operator")
-		return
+		return f
 	}
-	query := f.client.clientTransport.baseURL.Query()
-	query.Add(column, operator+"."+value)
-	f.client.clientTransport.baseURL.RawQuery = query.Encode()
+	f.client.clientTransport.params.Add(column, operator+"."+value)
+	return f
 }
 
-func (f *FilterBuilder) Or(filters, foreignTable string) {
-	query := f.client.clientTransport.baseURL.Query()
+func (f *FilterBuilder) Or(filters, foreignTable string) *FilterBuilder {
 	if foreignTable != "" {
-		query.Add(foreignTable+".or", fmt.Sprintf("(%s)", filters))
+		f.client.clientTransport.params.Add(foreignTable+".or", fmt.Sprintf("(%s)", filters))
 	} else {
-		query.Add("or", fmt.Sprintf("(%s)", filters))
+		f.client.clientTransport.params.Add("or", fmt.Sprintf("(%s)", filters))
 	}
-	f.client.clientTransport.baseURL.RawQuery = query.Encode()
+	return f
 }
 
-func (f *FilterBuilder) Not(column, operator, value string) {
+func (f *FilterBuilder) Not(column, operator, value string) *FilterBuilder {
 	if !isOperator(operator) {
-		return
+		return f
 	}
-	query := f.client.clientTransport.baseURL.Query()
-	query.Add(column, "not."+operator+"."+value)
-	f.client.clientTransport.baseURL.RawQuery = query.Encode()
+	f.client.clientTransport.params.Add(column, "not."+operator+"."+value)
+	return f
 }
 
-func (f *FilterBuilder) Match(userQuery map[string]string) {
-	query := f.client.clientTransport.baseURL.Query()
+func (f *FilterBuilder) Match(userQuery map[string]string) *FilterBuilder {
 	for key, value := range userQuery {
-		query.Add(key, "eq."+value)
+		f.client.clientTransport.params.Add(key, "eq."+value)
 	}
-	f.client.clientTransport.baseURL.RawQuery = query.Encode()
+	return f
 }
 
-func (f *FilterBuilder) Eq(column, value string) {
-	query := f.client.clientTransport.baseURL.Query()
-	query.Add(column, "eq."+value)
-	f.client.clientTransport.baseURL.RawQuery = query.Encode()
+func (f *FilterBuilder) Eq(column, value string) *FilterBuilder {
+	f.client.clientTransport.params.Add(column, "eq."+value)
+	return f
 }
 
-func (f *FilterBuilder) Neq(column, value string) {
-	query := f.client.clientTransport.baseURL.Query()
-	query.Add(column, "neq."+value)
-	f.client.clientTransport.baseURL.RawQuery = query.Encode()
+func (f *FilterBuilder) Neq(column, value string) *FilterBuilder {
+	f.client.clientTransport.params.Add(column, "neq."+value)
+	return f
 }
 
-func (f *FilterBuilder) Gt(column, value string) {
-	query := f.client.clientTransport.baseURL.Query()
-	query.Add(column, "gt."+value)
-	f.client.clientTransport.baseURL.RawQuery = query.Encode()
+func (f *FilterBuilder) Gt(column, value string) *FilterBuilder {
+	f.client.clientTransport.params.Add(column, "gt."+value)
+	return f
 }
 
-func (f *FilterBuilder) Gte(column, value string) {
-	query := f.client.clientTransport.baseURL.Query()
-	query.Add(column, "gte."+value)
-	f.client.clientTransport.baseURL.RawQuery = query.Encode()
+func (f *FilterBuilder) Gte(column, value string) *FilterBuilder {
+	f.client.clientTransport.params.Add(column, "gte."+value)
+	return f
 }
 
-func (f *FilterBuilder) Lt(column, value string) {
-	query := f.client.clientTransport.baseURL.Query()
-	query.Add(column, "lt."+value)
-	f.client.clientTransport.baseURL.RawQuery = query.Encode()
+func (f *FilterBuilder) Lt(column, value string) *FilterBuilder {
+	f.client.clientTransport.params.Add(column, "lt."+value)
+	return f
 }
 
-func (f *FilterBuilder) Lte(column, value string) {
-	query := f.client.clientTransport.baseURL.Query()
-	query.Add(column, "lte."+value)
-	f.client.clientTransport.baseURL.RawQuery = query.Encode()
+func (f *FilterBuilder) Lte(column, value string) *FilterBuilder {
+	f.client.clientTransport.params.Add(column, "lte."+value)
+	return f
 }
 
-func (f *FilterBuilder) Like(column, value string) {
-	query := f.client.clientTransport.baseURL.Query()
-	query.Add(column, "like."+value)
-	f.client.clientTransport.baseURL.RawQuery = query.Encode()
+func (f *FilterBuilder) Like(column, value string) *FilterBuilder {
+	f.client.clientTransport.params.Add(column, "like."+value)
+	return f
 }
 
-func (f *FilterBuilder) Ilike(column, value string) {
-	query := f.client.clientTransport.baseURL.Query()
-	query.Add(column, "ilike."+value)
-	f.client.clientTransport.baseURL.RawQuery = query.Encode()
+func (f *FilterBuilder) Ilike(column, value string) *FilterBuilder {
+	f.client.clientTransport.params.Add(column, "ilike."+value)
+	return f
 }
 
-func (f *FilterBuilder) Is(column, value string) {
-	query := f.client.clientTransport.baseURL.Query()
-	query.Add(column, "is."+value)
-	f.client.clientTransport.baseURL.RawQuery = query.Encode()
+func (f *FilterBuilder) Is(column, value string) *FilterBuilder {
+	f.client.clientTransport.params.Add(column, "is."+value)
+	return f
 }
 
 func (f *FilterBuilder) In() {}
-func (f *FilterBuilder) Contains(column string, value []string) {
-	query := f.client.clientTransport.baseURL.Query()
-	query.Add(column, "cs."+strings.Join(value, ","))
-	f.client.clientTransport.baseURL.RawQuery = query.Encode()
+func (f *FilterBuilder) Contains(column string, value []string) *FilterBuilder {
+	f.client.clientTransport.params.Add(column, "cs."+strings.Join(value, ","))
+	return f
 }
 
-func (f *FilterBuilder) ContainedBy(column string, value []string) {
-	query := f.client.clientTransport.baseURL.Query()
-	query.Add(column, "cd."+strings.Join(value, ","))
-	f.client.clientTransport.baseURL.RawQuery = query.Encode()
+func (f *FilterBuilder) ContainedBy(column string, value []string) *FilterBuilder {
+	f.client.clientTransport.params.Add(column, "cd."+strings.Join(value, ","))
+	return f
 }
 
 func (f *FilterBuilder) ContainsObject()    {}
 func (f *FilterBuilder) ContainedByObject() {}
 
-func (f *FilterBuilder) RangeLt(column, value string) {
-	query := f.client.clientTransport.baseURL.Query()
-	query.Add(column, "sl."+value)
-	f.client.clientTransport.baseURL.RawQuery = query.Encode()
+func (f *FilterBuilder) RangeLt(column, value string) *FilterBuilder {
+	f.client.clientTransport.params.Add(column, "sl."+value)
+	return f
 }
 
-func (f *FilterBuilder) RangeGt(column, value string) {
-	query := f.client.clientTransport.baseURL.Query()
-	query.Add(column, "sr."+value)
-	f.client.clientTransport.baseURL.RawQuery = query.Encode()
+func (f *FilterBuilder) RangeGt(column, value string) *FilterBuilder {
+	f.client.clientTransport.params.Add(column, "sr."+value)
+	return f
 }
 
-func (f *FilterBuilder) RangeGte(column, value string) {
-	query := f.client.clientTransport.baseURL.Query()
-	query.Add(column, "nxl."+value)
-	f.client.clientTransport.baseURL.RawQuery = query.Encode()
+func (f *FilterBuilder) RangeGte(column, value string) *FilterBuilder {
+	f.client.clientTransport.params.Add(column, "nxl."+value)
+	return f
 }
 
-func (f *FilterBuilder) RangeLte(column, value string) {
-	query := f.client.clientTransport.baseURL.Query()
-	query.Add(column, "nxr."+value)
-	f.client.clientTransport.baseURL.RawQuery = query.Encode()
+func (f *FilterBuilder) RangeLte(column, value string) *FilterBuilder {
+	f.client.clientTransport.params.Add(column, "nxr."+value)
+	return f
 }
 
-func (f *FilterBuilder) RangeAdjacent(column, value string) {
-	query := f.client.clientTransport.baseURL.Query()
-	query.Add(column, "adj."+value)
-	f.client.clientTransport.baseURL.RawQuery = query.Encode()
+func (f *FilterBuilder) RangeAdjacent(column, value string) *FilterBuilder {
+	f.client.clientTransport.params.Add(column, "adj."+value)
+	return f
 }
 
-func (f *FilterBuilder) Overlaps(column string, value []string) {
-	query := f.client.clientTransport.baseURL.Query()
-	query.Add(column, "ov."+strings.Join(value, ","))
-	f.client.clientTransport.baseURL.RawQuery = query.Encode()
+func (f *FilterBuilder) Overlaps(column string, value []string) *FilterBuilder {
+	f.client.clientTransport.params.Add(column, "ov."+strings.Join(value, ","))
+	return f
 }
 
-func (f *FilterBuilder) TextSearch(column, userQuery, config, tsType string) {
-	query := f.client.clientTransport.baseURL.Query()
+func (f *FilterBuilder) TextSearch(column, userQuery, config, tsType string) *FilterBuilder {
 	var typePart, configPart string
 	if tsType == "plain" {
 		typePart = "pl"
@@ -182,11 +160,11 @@ func (f *FilterBuilder) TextSearch(column, userQuery, config, tsType string) {
 		typePart = ""
 	} else {
 		f.client.ClientError = fmt.Errorf("invalid text search type")
-		return
+		return f
 	}
 	if config != "" {
 		configPart = fmt.Sprintf("(%s)", config)
 	}
-	query.Add(column, typePart+"fts"+configPart+"."+userQuery)
-	f.client.clientTransport.baseURL.RawQuery = query.Encode()
+	f.client.clientTransport.params.Add(column, typePart+"fts"+configPart+"."+userQuery)
+	return f
 }

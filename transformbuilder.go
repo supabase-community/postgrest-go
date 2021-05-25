@@ -13,13 +13,13 @@ func (t *TransformBuilder) Execute() (string, error) {
 }
 
 func (t *TransformBuilder) Limit(count int, foreignTable string) *TransformBuilder {
-	query := t.client.clientTransport.baseURL.Query()
+
 	if foreignTable != "" {
-		query.Add(foreignTable+".limit", fmt.Sprint(count))
+		t.client.clientTransport.params.Add(foreignTable+".limit", fmt.Sprint(count))
 	} else {
-		query.Add("limit", fmt.Sprint(count))
+		t.client.clientTransport.params.Add("limit", fmt.Sprint(count))
 	}
-	t.client.clientTransport.baseURL.RawQuery = query.Encode()
+
 	return t
 }
 
@@ -30,8 +30,8 @@ func (t *TransformBuilder) Order(column, foreignTable string, ascending, nullsFi
 	} else {
 		key = "order"
 	}
-	query := t.client.clientTransport.baseURL.Query()
-	existingOrder := query.Get(key)
+
+	existingOrder := t.client.clientTransport.params.Get(key)
 
 	var ascendingString string
 	if ascending {
@@ -48,22 +48,22 @@ func (t *TransformBuilder) Order(column, foreignTable string, ascending, nullsFi
 	}
 
 	if existingOrder != "" {
-		query.Set(key, existingOrder+","+column+"."+ascendingString+"."+nullsString)
+		t.client.clientTransport.params.Set(key, existingOrder+","+column+"."+ascendingString+"."+nullsString)
 	} else {
-		query.Add(key, column+"."+ascendingString+"."+nullsString)
+		t.client.clientTransport.params.Add(key, column+"."+ascendingString+"."+nullsString)
 	}
-	t.client.clientTransport.baseURL.RawQuery = query.Encode()
+
 	return t
 }
 
 func (t *TransformBuilder) Range(from, to int, foreignTable string) *TransformBuilder {
-	query := t.client.clientTransport.baseURL.Query()
+
 	if foreignTable != "" {
-		query.Add(foreignTable+".offset", fmt.Sprint(from))
-		query.Add(foreignTable+".limit", fmt.Sprint(to-from+1))
+		t.client.clientTransport.params.Add(foreignTable+".offset", fmt.Sprint(from))
+		t.client.clientTransport.params.Add(foreignTable+".limit", fmt.Sprint(to-from+1))
 	} else {
-		query.Add("offset", fmt.Sprint(from))
-		query.Add("limit", fmt.Sprint(to-from+1))
+		t.client.clientTransport.params.Add("offset", fmt.Sprint(from))
+		t.client.clientTransport.params.Add("limit", fmt.Sprint(to-from+1))
 	}
 	return t
 }

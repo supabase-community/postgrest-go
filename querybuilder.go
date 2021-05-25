@@ -15,16 +15,15 @@ func (q *QueryBuilder) Execute() (string, error) {
 	return Execute(q.client, q.method, q.body)
 }
 
-func (q *QueryBuilder) Select(columns, count string, head bool) *QueryBuilder {
+func (q *QueryBuilder) Select(columns, count string, head bool) *FilterBuilder {
 	if head {
 		q.method = "HEAD"
 	} else {
 		q.method = "GET"
 	}
 
-	query := q.client.clientTransport.baseURL.Query()
 	if columns == "" {
-		query.Add("select", "*")
+		q.client.clientTransport.params.Add("select", "*")
 	} else {
 		quoted := false
 		var resultArr = []string{}
@@ -38,9 +37,8 @@ func (q *QueryBuilder) Select(columns, count string, head bool) *QueryBuilder {
 			resultArr = append(resultArr, char)
 		}
 		result := strings.Join(resultArr, "")
-		query.Add("select", result)
+		q.client.clientTransport.params.Add("select", result)
 	}
-	q.client.clientTransport.baseURL.RawQuery = query.Encode()
 
 	if count != "" && (count == `exact` || count == `planned` || count == `estimated`) {
 		if q.client.clientTransport.header.Get("Prefer") == "" {
@@ -49,17 +47,15 @@ func (q *QueryBuilder) Select(columns, count string, head bool) *QueryBuilder {
 			q.client.clientTransport.header.Set("Prefer", q.client.clientTransport.header.Get("Prefer")+",count="+count)
 		}
 	}
-	return q
+	return &FilterBuilder{client: q.client, method: q.method, body: q.body}
 }
 
-func (q *QueryBuilder) Upsert(value interface{}, onConflict, returning, count string) *QueryBuilder {
+func (q *QueryBuilder) Upsert(value interface{}, onConflict, returning, count string) *FilterBuilder {
 	q.method = "POST"
 
-	query := q.client.clientTransport.baseURL.Query()
 	if onConflict != "" {
-		query.Add("on_conflict", onConflict)
+		q.client.clientTransport.params.Add("on_conflict", onConflict)
 	}
-	q.client.clientTransport.baseURL.RawQuery = query.Encode()
 
 	headerList := []string{"resolution=merge-duplicates"}
 	if returning == "" {
@@ -79,15 +75,15 @@ func (q *QueryBuilder) Upsert(value interface{}, onConflict, returning, count st
 		jsonBody, err := json.Marshal(value)
 		if err != nil {
 			q.client.ClientError = err
-			return q
+			return &FilterBuilder{}
 		}
 		byteBody = jsonBody
 	}
 	q.body = byteBody
-	return q
+	return &FilterBuilder{client: q.client, method: q.method, body: q.body}
 }
 
-func (q *QueryBuilder) Delete(returning, count string) *QueryBuilder {
+func (q *QueryBuilder) Delete(returning, count string) *FilterBuilder {
 	q.method = "DELETE"
 
 	headerList := []string{}
@@ -101,10 +97,10 @@ func (q *QueryBuilder) Delete(returning, count string) *QueryBuilder {
 		headerList = append(headerList, "count="+count)
 	}
 	q.client.clientTransport.header.Set("Prefer", strings.Join(headerList, ","))
-	return q
+	return &FilterBuilder{client: q.client, method: q.method, body: q.body}
 }
 
-func (q *QueryBuilder) Update(value interface{}, returning, count string) *QueryBuilder {
+func (q *QueryBuilder) Update(value interface{}, returning, count string) *FilterBuilder {
 	q.method = "PATCH"
 
 	headerList := []string{}
@@ -125,10 +121,10 @@ func (q *QueryBuilder) Update(value interface{}, returning, count string) *Query
 		jsonBody, err := json.Marshal(value)
 		if err != nil {
 			q.client.ClientError = err
-			return q
+			return &FilterBuilder{}
 		}
 		byteBody = jsonBody
 	}
 	q.body = byteBody
-	return q
+	return &FilterBuilder{client: q.client, method: q.method, body: q.body}
 }
