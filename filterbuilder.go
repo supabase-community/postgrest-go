@@ -2,6 +2,7 @@ package postgrest
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -16,6 +17,7 @@ func (f *FilterBuilder) Execute() (string, error) {
 }
 
 var filterOperators = []string{"eq", "neq", "gt", "gte", "lt", "lte", "like", "ilike", "is", "in", "cs", "cd", "sl", "sr", "nxl", "nxr", "adj", "ov", "fts", "plfts", "phfts", "wfts"}
+var RegExp string = "[,()]"
 
 func isOperator(value string) bool {
 	for _, operator := range filterOperators {
@@ -104,7 +106,19 @@ func (f *FilterBuilder) Is(column, value string) *FilterBuilder {
 	return f
 }
 
-func (f *FilterBuilder) In() {}
+func (f *FilterBuilder) In(column string, value []string) *FilterBuilder {
+	cleanedValues := value
+	var values []string
+	for _, cleanValue := range cleanedValues {
+		exp, _ := regexp.MatchString(cleanValue, RegExp)
+		if exp {
+			values = append(values, "\"cleanValue\"")
+		}
+	}
+	f.client.clientTransport.params.Add(column, "in."+strings.Join(values, ","))
+	return f
+}
+
 func (f *FilterBuilder) Contains(column string, value []string) *FilterBuilder {
 	f.client.clientTransport.params.Add(column, "cs."+strings.Join(value, ","))
 	return f
@@ -115,8 +129,16 @@ func (f *FilterBuilder) ContainedBy(column string, value []string) *FilterBuilde
 	return f
 }
 
-func (f *FilterBuilder) ContainsObject()    {}
-func (f *FilterBuilder) ContainedByObject() {}
+func (f *FilterBuilder) ContainsObject(column string, value string) *FilterBuilder {
+	f.client.clientTransport.params.Add(column, "cs."+value)
+	return f
+}
+
+func (f *FilterBuilder) ContainedByObject(column string, value string) *FilterBuilder{
+	f.client.clientTransport.params.Add(column, "cd."+value)
+
+	return nil
+}
 
 func (f *FilterBuilder) RangeLt(column, value string) *FilterBuilder {
 	f.client.clientTransport.params.Add(column, "sl."+value)
