@@ -16,3 +16,6 @@
 
 #Ide Folder Ignore
 .idea
+
+#VSCode Folder Ignore
+.vscode
