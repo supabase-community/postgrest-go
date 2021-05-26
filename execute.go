@@ -2,7 +2,6 @@ package postgrest
 
 import (
 	"bytes"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 )
@@ -17,7 +16,7 @@ func Execute(client *Client, method string, body []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	fmt.Println(resp.Request.URL.String())
+
 	respbody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
