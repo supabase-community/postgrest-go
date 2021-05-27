@@ -4,30 +4,31 @@
 
 package main
 
-// import "fmt"
+import (
+	"fmt"
 
-// var (
-// 	REST_URL = `http://localhost:3000`
-// 	headers  = map[string]string{
-// 		"apikey": "postgrest-go",
-// 	}
-// 	schema = "public"
-// )
+	"github.com/muratmirgun/postgrest-go"
+)
 
-// type DataModel struct {
-// 	ID   int
-// 	Task string
-// 	Done bool
-// }
+var (
+	REST_URL = `http://localhost:3000`
+	headers  = map[string]string{}
+	schema   = "public"
+)
 
-// func main() {
-// 	client := postgrest.NewClient(REST_URL, headers, schema)
+type DataModel struct {
+	ID   int
+	Task string
+	Done bool
+}
 
-// 	var data = []DataModel{}
-// 	err := client.From("todos").Select("task").Eq("task", "finish writing tests").Unmarshal(&data)
-// 	if err != nil {
-// 		panic(err)
-// 	}
+func main() {
+	client := postgrest.NewClient(REST_URL, schema, headers)
 
-// 	fmt.Println(data)
-// }
+	res, err := client.From("todos").Select("id,task,done", "", false).Eq("task", "that created from postgrest-go").Execute()
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(res)
+}
