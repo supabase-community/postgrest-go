@@ -7,6 +7,10 @@ import (
 )
 
 func Execute(client *Client, method string, body []byte) (string, error) {
+	if client.ClientError != nil {
+		return "", client.ClientError
+	}
+
 	readerBody := bytes.NewBuffer(body)
 	req, err := http.NewRequest(method, client.clientTransport.baseURL.Path, readerBody)
 	if err != nil {
