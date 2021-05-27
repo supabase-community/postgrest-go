@@ -86,7 +86,7 @@ func (q *QueryBuilder) Upsert(value interface{}, onConflict, returning, count st
 func (q *QueryBuilder) Delete(returning, count string) *FilterBuilder {
 	q.method = "DELETE"
 
-	headerList := []string{}
+	var headerList []string
 	if returning == "" {
 		returning = "representation"
 	}
@@ -103,7 +103,7 @@ func (q *QueryBuilder) Delete(returning, count string) *FilterBuilder {
 func (q *QueryBuilder) Update(value interface{}, returning, count string) *FilterBuilder {
 	q.method = "PATCH"
 
-	headerList := []string{}
+	var headerList []string
 	if returning == "" {
 		returning = "representation"
 	}
