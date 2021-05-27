@@ -50,6 +50,41 @@ func (q *QueryBuilder) Select(columns, count string, head bool) *FilterBuilder {
 	return &FilterBuilder{client: q.client, method: q.method, body: q.body}
 }
 
+func (q *QueryBuilder) Insert(value interface{}, upsert bool, onConflict, returning, count string) *FilterBuilder {
+	q.method = "POST"
+
+	if onConflict != "" && upsert {
+		q.client.clientTransport.params.Add("on_conflict", onConflict)
+	}
+
+	headerList := []string{}
+	if upsert {
+		headerList = append(headerList, "resolution=merge-duplicates")
+	}
+	if returning == "" {
+		returning = "representation"
+	}
+	if returning == "minimal" || returning == "representation" {
+		headerList = append(headerList, "return="+returning)
+	}
+	if count != "" && (count == `exact` || count == `planned` || count == `estimated`) {
+		headerList = append(headerList, "count="+count)
+	}
+	q.client.clientTransport.header.Set("Prefer", strings.Join(headerList, ","))
+
+	// Get body if exist
+	var byteBody []byte = nil
+	if value != nil {
+		jsonBody, err := json.Marshal(value)
+		if err != nil {
+			q.client.ClientError = err
+			return &FilterBuilder{}
+		}
+		byteBody = jsonBody
+	}
+	q.body = byteBody
+	return &FilterBuilder{client: q.client, method: q.method, body: q.body}
+}
 func (q *QueryBuilder) Upsert(value interface{}, onConflict, returning, count string) *FilterBuilder {
 	q.method = "POST"
 
