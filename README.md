@@ -1,5 +1,6 @@
 # Postgrest GO
-[![golangci-lint](https://github.com/supabase/postgrest-go/actions/workflows/golangci.yml/badge.svg)](https://github.com/muratmirgun/postgrest-go/actions/workflows/golangci.yml) [![CodeFactor](https://www.codefactor.io/repository/github/supabase/postgrest-go/badge/main?s=101cab44de33934fd85cadcd9a9b535a05791670)](https://www.codefactor.io/repository/github/muratmirgun/postgrest-go/overview/main)
+
+[![golangci-lint](https://github.com/supabase/postgrest-go/actions/workflows/golangci.yml/badge.svg)](https://github.com/supabase/postgrest-go/actions/workflows/golangci.yml) [![CodeFactor](https://www.codefactor.io/repository/github/supabase/postgrest-go/badge/main?s=101cab44de33934fd85cadcd9a9b535a05791670)](https://www.codefactor.io/repository/github/supabase/postgrest-go/overview/main)
 
 Golang client for [PostgREST](https://postgrest.org). The goal of this library is to make an "ORM-like" restful interface.
 
@@ -23,7 +24,7 @@ package main
 import (
 "fmt"
 ​
-"github.com/muratmirgun/postgrest-go"
+"github.com/supabase/postgrest-go"
 )
 ​
 func main() {
@@ -50,13 +51,10 @@ func main() {
 
 This repo is liscenced under Apache License.
 
-
-
 ## Sponsors
 
 We are building the features of Firebase using enterprise-grade, open source products. We support existing communities wherever possible, and if the products don’t exist we build them and open source them ourselves. Thanks to these sponsors who are making the OSS ecosystem better for everyone.
 
 [![New Sponsor](https://user-images.githubusercontent.com/10214025/90518111-e74bbb00-e198-11ea-8f88-c9e3c1aa4b5b.png)](https://github.com/sponsors/supabase)
-
 
 ![Watch this repo](https://gitcdn.xyz/repo/supabase/monorepo/master/web/static/watch-repo.gif "Watch this repo")

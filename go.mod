@@ -1,3 +1,3 @@
-module github.com/muratmirgun/postgrest-go
+module github.com/supabase/postgrest-go
 
 go 1.16
