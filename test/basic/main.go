@@ -16,12 +16,6 @@ var (
 	schema   = "public"
 )
 
-type DataModel struct {
-	ID   int
-	Task string
-	Done bool
-}
-
 func main() {
 	client := postgrest.NewClient(REST_URL, schema, headers)
 
