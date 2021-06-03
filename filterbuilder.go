@@ -17,6 +17,10 @@ func (f *FilterBuilder) Execute() (string, error) {
 	return Execute(f.client, f.method, f.body)
 }
 
+func (f *FilterBuilder) ExecuteReturnByteArray() ([]byte, error) {
+	return ExecuteReturnByteArray(f.client, f.method, f.body)
+}
+
 var filterOperators = []string{"eq", "neq", "gt", "gte", "lt", "lte", "like", "ilike", "is", "in", "cs", "cd", "sl", "sr", "nxl", "nxr", "adj", "ov", "fts", "plfts", "phfts", "wfts"}
 
 
