@@ -7,7 +7,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/supabase/postgrest-go"
+	"github.com/marcustut/postgrest-go"
 )
 
 var (
