@@ -6,31 +6,38 @@ import (
 	"net/http"
 )
 
-func Execute(client *Client, method string, body []byte) (string, error) {
+func ExecuteHelper(client *Client, method string, body []byte) ([]byte, error) {
 	if client.ClientError != nil {
-		return "", client.ClientError
+		return nil, client.ClientError
 	}
 
 	readerBody := bytes.NewBuffer(body)
 	req, err := http.NewRequest(method, client.clientTransport.baseURL.Path, readerBody)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	resp, err := client.session.Do(req)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	respbody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-
-	result := string(respbody)
 
 	err = resp.Body.Close()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return result, nil
+	return respbody, nil
+}
+
+func Execute(client *Client, method string, body []byte) (string, error) {
+	resp, err := ExecuteHelper(client, method, body)
+	return string(resp), err
+}
+
+func ExecuteReturnByteArray(client *Client, method string, body []byte) ([]byte, error) {
+	return ExecuteHelper(client, method, body)
 }
