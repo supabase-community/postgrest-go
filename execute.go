@@ -2,7 +2,7 @@ package postgrest
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"net/http"
 )
 
@@ -21,7 +21,7 @@ func ExecuteHelper(client *Client, method string, body []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	respbody, err := ioutil.ReadAll(resp.Body)
+	respbody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}

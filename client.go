@@ -3,7 +3,7 @@ package postgrest
 import (
 	"bytes"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 )
@@ -100,7 +100,7 @@ func (c *Client) Rpc(name string, count string, rpcBody interface{}) string {
 		return ""
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		c.ClientError = err
 		return ""
