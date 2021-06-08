@@ -11,8 +11,12 @@ type QueryBuilder struct {
 	body   []byte
 }
 
-func (q *QueryBuilder) Execute() (string, error) {
-	return Execute(q.client, q.method, q.body)
+func (q *QueryBuilder) ExecuteString() (string, error) {
+	return executeString(q.client, q.method, q.body)
+}
+
+func (q *QueryBuilder) Execute() ([]byte, error) {
+	return execute(q.client, q.method, q.body)
 }
 
 func (q *QueryBuilder) Select(columns, count string, head bool) *FilterBuilder {

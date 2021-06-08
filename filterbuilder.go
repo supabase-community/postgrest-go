@@ -13,16 +13,15 @@ type FilterBuilder struct {
 	body   []byte
 }
 
-func (f *FilterBuilder) Execute() (string, error) {
-	return Execute(f.client, f.method, f.body)
+func (f *FilterBuilder) ExecuteString() (string, error) {
+	return executeString(f.client, f.method, f.body)
 }
 
-func (f *FilterBuilder) ExecuteReturnByteArray() ([]byte, error) {
-	return ExecuteReturnByteArray(f.client, f.method, f.body)
+func (f *FilterBuilder) Execute() ([]byte, error) {
+	return execute(f.client, f.method, f.body)
 }
 
 var filterOperators = []string{"eq", "neq", "gt", "gte", "lt", "lte", "like", "ilike", "is", "in", "cs", "cd", "sl", "sr", "nxl", "nxr", "adj", "ov", "fts", "plfts", "phfts", "wfts"}
-
 
 func isOperator(value string) bool {
 	for _, operator := range filterOperators {
@@ -135,7 +134,7 @@ func (f *FilterBuilder) ContainedBy(column string, value []string) *FilterBuilde
 }
 
 func (f *FilterBuilder) ContainsObject(column string, value interface{}) *FilterBuilder {
-	sum , err := json.Marshal(value)
+	sum, err := json.Marshal(value)
 	if err != nil {
 		f.client.ClientError = err
 	}
@@ -143,8 +142,8 @@ func (f *FilterBuilder) ContainsObject(column string, value interface{}) *Filter
 	return f
 }
 
-func (f *FilterBuilder) ContainedByObject(column string, value interface{}) *FilterBuilder{
-	sum , err := json.Marshal(value)
+func (f *FilterBuilder) ContainedByObject(column string, value interface{}) *FilterBuilder {
+	sum, err := json.Marshal(value)
 	if err != nil {
 		f.client.ClientError = err
 	}

@@ -8,8 +8,12 @@ type TransformBuilder struct {
 	body   []byte
 }
 
-func (t *TransformBuilder) Execute() (string, error) {
-	return Execute(t.client, t.method, t.body)
+func (t *TransformBuilder) ExecuteString() (string, error) {
+	return executeString(t.client, t.method, t.body)
+}
+
+func (t *TransformBuilder) Execute() ([]byte, error) {
+	return execute(t.client, t.method, t.body)
 }
 
 func (t *TransformBuilder) Limit(count int, foreignTable string) *TransformBuilder {

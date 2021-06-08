@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-func ExecuteHelper(client *Client, method string, body []byte) ([]byte, error) {
+func executeHelper(client *Client, method string, body []byte) ([]byte, error) {
 	if client.ClientError != nil {
 		return nil, client.ClientError
 	}
@@ -33,11 +33,11 @@ func ExecuteHelper(client *Client, method string, body []byte) ([]byte, error) {
 	return respbody, nil
 }
 
-func Execute(client *Client, method string, body []byte) (string, error) {
-	resp, err := ExecuteHelper(client, method, body)
+func executeString(client *Client, method string, body []byte) (string, error) {
+	resp, err := executeHelper(client, method, body)
 	return string(resp), err
 }
 
-func ExecuteReturnByteArray(client *Client, method string, body []byte) ([]byte, error) {
-	return ExecuteHelper(client, method, body)
+func execute(client *Client, method string, body []byte) ([]byte, error) {
+	return executeHelper(client, method, body)
 }
