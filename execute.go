@@ -54,6 +54,6 @@ func executeTo(client *Client, method string, body []byte) (interface{}, error) 
 
 	readableRes := bytes.NewBuffer(resp)
 
-	err = json.NewDecoder(readableRes).Decode(decodedBody)
+	err = json.NewDecoder(readableRes).Decode(&decodedBody)
 	return decodedBody, err
 }
