@@ -19,6 +19,10 @@ func (q *QueryBuilder) Execute() ([]byte, error) {
 	return execute(q.client, q.method, q.body)
 }
 
+func (q *QueryBuilder) ExecuteTo() (interface{}, error) {
+	return executeTo(q.client, q.method, q.body)
+}
+
 func (q *QueryBuilder) Select(columns, count string, head bool) *FilterBuilder {
 	if head {
 		q.method = "HEAD"

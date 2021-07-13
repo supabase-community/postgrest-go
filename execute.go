@@ -2,6 +2,7 @@ package postgrest
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 )
@@ -40,4 +41,19 @@ func executeString(client *Client, method string, body []byte) (string, error) {
 
 func execute(client *Client, method string, body []byte) ([]byte, error) {
 	return executeHelper(client, method, body)
+}
+
+func executeTo(client *Client, method string, body []byte) (interface{}, error) {
+	resp, err := executeHelper(client, method, body)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var decodedBody interface{}
+
+	readableRes := bytes.NewBuffer(resp)
+
+	err = json.NewDecoder(readableRes).Decode(decodedBody)
+	return decodedBody, err
 }
