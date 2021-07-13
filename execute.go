@@ -43,17 +43,15 @@ func execute(client *Client, method string, body []byte) ([]byte, error) {
 	return executeHelper(client, method, body)
 }
 
-func executeTo(client *Client, method string, body []byte) (interface{}, error) {
+func executeTo(client *Client, method string, body []byte, to interface{}) error {
 	resp, err := executeHelper(client, method, body)
 
 	if err != nil {
-		return nil, err
+		return err
 	}
-
-	var decodedBody interface{}
 
 	readableRes := bytes.NewBuffer(resp)
 
-	err = json.NewDecoder(readableRes).Decode(&decodedBody)
-	return decodedBody, err
+	err = json.NewDecoder(readableRes).Decode(&to)
+	return err
 }

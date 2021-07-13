@@ -21,8 +21,8 @@ func (f *FilterBuilder) Execute() ([]byte, error) {
 	return execute(f.client, f.method, f.body)
 }
 
-func (f *FilterBuilder) ExecuteTo() (interface{}, error) {
-	return executeTo(f.client, f.method, f.body)
+func (f *FilterBuilder) ExecuteTo(to interface{}) error {
+	return executeTo(f.client, f.method, f.body, to)
 }
 
 var filterOperators = []string{"eq", "neq", "gt", "gte", "lt", "lte", "like", "ilike", "is", "in", "cs", "cd", "sl", "sr", "nxl", "nxr", "adj", "ov", "fts", "plfts", "phfts", "wfts"}
