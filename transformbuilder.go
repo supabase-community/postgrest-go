@@ -16,6 +16,10 @@ func (t *TransformBuilder) Execute() ([]byte, error) {
 	return execute(t.client, t.method, t.body)
 }
 
+func (t *TransformBuilder) ExecuteTo(to interface{}) error {
+	return executeTo(t.client, t.method, t.body, to)
+}
+
 func (t *TransformBuilder) Limit(count int, foreignTable string) *TransformBuilder {
 
 	if foreignTable != "" {
