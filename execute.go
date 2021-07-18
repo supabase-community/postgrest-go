@@ -44,7 +44,10 @@ func executeHelper(client *Client, method string, body []byte) ([]byte, error) {
 	// errors are returned.. but to be safe
 	if resp.StatusCode >= 300 {
 		var errmsg *ExecuteErrorResponse
-		json.Unmarshal(respbody, &errmsg)
+		err := json.Unmarshal(respbody, &errmsg)
+		if err != nil {
+			return nil, err
+		}
 		return nil, fmt.Errorf("(%s) %s", errmsg.Code, errmsg.Message)
 	}
 
