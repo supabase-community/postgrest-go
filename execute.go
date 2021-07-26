@@ -8,10 +8,10 @@ import (
 	"net/http"
 )
 
-// ExecuteErrorResponse is the error response format from postgrest. We really
+// ExecuteError is the error response format from postgrest. We really
 // only use Code and Message, but we'll keep it as a struct for now.
 
-type ExecuteErrorResponse struct {
+type ExecuteError struct {
 	Hint    string `json:"hint"`
 	Details string `json:"details"`
 	Code    string `json:"code"`
@@ -34,16 +34,14 @@ func executeHelper(client *Client, method string, body []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	respbody, rerr := io.ReadAll(resp.Body)
-	if rerr != nil {
-		return nil, rerr
+	respbody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
 	}
 
-	// If we didnt get 20x response, unmarshal the error body to be able to format
-	// an informative error message. Mayb this should be >= 400, since I doubt redirect
-	// errors are returned.. but to be safe
-	if resp.StatusCode >= 300 {
-		var errmsg *ExecuteErrorResponse
+	// https://postgrest.org/en/stable/api.html#errors-and-http-status-codes
+	if resp.StatusCode >= 400 {
+		var errmsg *ExecuteError
 		err := json.Unmarshal(respbody, &errmsg)
 		if err != nil {
 			return nil, err
