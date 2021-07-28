@@ -84,7 +84,7 @@ func (c *Client) Rpc(name string, count string, rpcBody interface{}) string {
 	}
 
 	if count != "" && (count == `exact` || count == `planned` || count == `estimated`) {
-		req.Header.Add("Prefer", "count=" + count)
+		req.Header.Add("Prefer", "count="+count)
 	}
 
 	resp, err := c.session.Do(req)

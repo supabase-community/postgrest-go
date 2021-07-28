@@ -6,11 +6,11 @@ import (
 )
 
 type TransformBuilder struct {
-	client    *Client
-	method    string
-	body      []byte
-	headers   map[string]string
-	params    map[string]string
+	client  *Client
+	method  string
+	body    []byte
+	headers map[string]string
+	params  map[string]string
 }
 
 func (t *TransformBuilder) ExecuteString() (string, error) {
@@ -27,7 +27,7 @@ func (t *TransformBuilder) ExecuteTo(to interface{}) error {
 
 func (t *TransformBuilder) Limit(count int, foreignTable string) *TransformBuilder {
 	if foreignTable != "" {
-		t.params[foreignTable + ".limit"] = strconv.Itoa(count)
+		t.params[foreignTable+".limit"] = strconv.Itoa(count)
 	} else {
 		t.params["limit"] = strconv.Itoa(count)
 	}
@@ -70,8 +70,8 @@ func (t *TransformBuilder) Order(column, foreignTable string, ascending, nullsFi
 
 func (t *TransformBuilder) Range(from, to int, foreignTable string) *TransformBuilder {
 	if foreignTable != "" {
-		t.params[foreignTable + ".offset"] = strconv.Itoa(from)
-		t.params[foreignTable + ".limit"] = strconv.Itoa(to - from + 1)
+		t.params[foreignTable+".offset"] = strconv.Itoa(from)
+		t.params[foreignTable+".limit"] = strconv.Itoa(to - from + 1)
 	} else {
 		t.params["offset"] = strconv.Itoa(from)
 		t.params["limit"] = strconv.Itoa(to - from + 1)

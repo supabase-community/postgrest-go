@@ -137,12 +137,12 @@ func (f *FilterBuilder) In(column string, values []string) *FilterBuilder {
 }
 
 func (f *FilterBuilder) Contains(column string, value []string) *FilterBuilder {
-	f.params[column] = "cs."+strings.Join(value, ",")
+	f.params[column] = "cs." + strings.Join(value, ",")
 	return f
 }
 
 func (f *FilterBuilder) ContainedBy(column string, value []string) *FilterBuilder {
-	f.params[column] = "cd."+strings.Join(value, ",")
+	f.params[column] = "cd." + strings.Join(value, ",")
 	return f
 }
 
@@ -151,7 +151,7 @@ func (f *FilterBuilder) ContainsObject(column string, value interface{}) *Filter
 	if err != nil {
 		f.client.ClientError = err
 	}
-	f.params[column] = "cs."+string(sum)
+	f.params[column] = "cs." + string(sum)
 	return f
 }
 
@@ -160,7 +160,7 @@ func (f *FilterBuilder) ContainedByObject(column string, value interface{}) *Fil
 	if err != nil {
 		f.client.ClientError = err
 	}
-	f.params[column] = "cs."+string(sum)
+	f.params[column] = "cs." + string(sum)
 	return f
 }
 
@@ -211,6 +211,6 @@ func (f *FilterBuilder) TextSearch(column, userQuery, config, tsType string) *Fi
 	if config != "" {
 		configPart = fmt.Sprintf("(%s)", config)
 	}
-	f.params[column] = typePart+"fts"+configPart+"."+userQuery
+	f.params[column] = typePart + "fts" + configPart + "." + userQuery
 	return f
 }
