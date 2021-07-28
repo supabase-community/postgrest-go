@@ -3,7 +3,6 @@ package postgrest
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"regexp"
 	"strings"
 )
@@ -117,10 +116,7 @@ func (f *FilterBuilder) Is(column, value string) *FilterBuilder {
 
 func (f *FilterBuilder) In(column string, values []string) *FilterBuilder {
 	var cleanedValues []string
-	illegalChars, err := regexp.Compile("[,()]")
-	if err != nil {
-		log.Panicf("Couldn't parse regexp: %+v", err)
-	}
+	illegalChars := regexp.MustCompile("[,()]")
 	for _, value := range values {
 		exp := illegalChars.MatchString(value)
 		if exp {
