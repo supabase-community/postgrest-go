@@ -59,7 +59,7 @@ func (q *QueryBuilder) Select(columns, count string, head bool) *FilterBuilder {
 		}
 		q.params["Prefer"] = count
 	}
-	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: map[string]string{}, params: map[string]string{}}
+	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params}
 }
 
 func (q *QueryBuilder) Insert(value interface{}, upsert bool, onConflict, returning, count string) *FilterBuilder {
@@ -95,7 +95,7 @@ func (q *QueryBuilder) Insert(value interface{}, upsert bool, onConflict, return
 		byteBody = jsonBody
 	}
 	q.body = byteBody
-	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: map[string]string{}, params: map[string]string{}}
+	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params}
 }
 func (q *QueryBuilder) Upsert(value interface{}, onConflict, returning, count string) *FilterBuilder {
 	q.method = "POST"
@@ -127,7 +127,7 @@ func (q *QueryBuilder) Upsert(value interface{}, onConflict, returning, count st
 		byteBody = jsonBody
 	}
 	q.body = byteBody
-	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: map[string]string{}, params: map[string]string{}}
+	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params}
 }
 
 func (q *QueryBuilder) Delete(returning, count string) *FilterBuilder {
@@ -144,7 +144,7 @@ func (q *QueryBuilder) Delete(returning, count string) *FilterBuilder {
 		headerList = append(headerList, "count="+count)
 	}
 	q.headers["Prefer"] = strings.Join(headerList, ",")
-	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: map[string]string{}, params: map[string]string{}}
+	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params}
 }
 
 func (q *QueryBuilder) Update(value interface{}, returning, count string) *FilterBuilder {
@@ -173,5 +173,5 @@ func (q *QueryBuilder) Update(value interface{}, returning, count string) *Filte
 		byteBody = jsonBody
 	}
 	q.body = byteBody
-	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: map[string]string{}, params: map[string]string{}}
+	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params}
 }
