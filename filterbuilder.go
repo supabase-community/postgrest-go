@@ -3,6 +3,7 @@ package postgrest
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 )
@@ -114,16 +115,21 @@ func (f *FilterBuilder) Is(column, value string) *FilterBuilder {
 	return f
 }
 
-func (f *FilterBuilder) In(column string, value []string) *FilterBuilder {
-	cleanedValues := value
-	var values []string
-	for _, cleanValue := range cleanedValues {
-		exp, _ := regexp.MatchString(cleanValue, "[,()]")
+func (f *FilterBuilder) In(column string, values []string) *FilterBuilder {
+	var cleanedValues []string
+	illegalChars, err := regexp.Compile("[,()]")
+	if err != nil {
+		log.Panicf("Couldn't parse regexp: %+v", err)
+	}
+	for _, value := range values {
+		exp := illegalChars.MatchString(value)
 		if exp {
-			values = append(values, "\"cleanValue\"")
+			cleanedValues = append(cleanedValues, fmt.Sprintf("\"%s\"", value))
+		} else {
+			cleanedValues = append(cleanedValues, value)
 		}
 	}
-	f.client.clientTransport.params.Add(column, "in."+strings.Join(values, ","))
+	f.client.clientTransport.params.Add(column, fmt.Sprintf("in.(%s)", strings.Join(cleanedValues, ",")))
 	return f
 }
 
