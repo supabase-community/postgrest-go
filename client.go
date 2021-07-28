@@ -16,7 +16,6 @@ func NewClient(rawURL, schema string, headers map[string]string) *Client {
 	}
 
 	t := transport{
-		params:  url.Values{},
 		header:  http.Header{},
 		baseURL: *baseURL,
 	}
@@ -112,14 +111,16 @@ func (c *Client) Rpc(name string, count string, rpcBody interface{}) string {
 }
 
 type transport struct {
-	params  url.Values
 	header  http.Header
 	baseURL url.URL
 }
 
 func (t transport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.Header = t.header
+	for headerName, values := range t.header {
+		for _, val := range values {
+			req.Header.Add(headerName, val)
+		}
+	}
 	req.URL = t.baseURL.ResolveReference(req.URL)
-	req.URL.RawQuery = t.params.Encode()
 	return http.DefaultTransport.RoundTrip(req)
 }
