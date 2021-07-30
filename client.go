@@ -16,7 +16,6 @@ func NewClient(rawURL, schema string, headers map[string]string) *Client {
 	}
 
 	t := transport{
-		params:  url.Values{},
 		header:  http.Header{},
 		baseURL: *baseURL,
 	}
@@ -62,12 +61,10 @@ func (c *Client) ChangeSchema(schema string) *Client {
 }
 
 func (c *Client) From(table string) *QueryBuilder {
-	c.clientTransport.baseURL.Path += table
-	return &QueryBuilder{client: c}
+	return &QueryBuilder{client: c, tableName: table, headers: map[string]string{}, params: map[string]string{}}
 }
 
 func (c *Client) Rpc(name string, count string, rpcBody interface{}) string {
-
 	// Get body if exist
 	var byteBody []byte = nil
 	if rpcBody != nil {
@@ -87,11 +84,7 @@ func (c *Client) Rpc(name string, count string, rpcBody interface{}) string {
 	}
 
 	if count != "" && (count == `exact` || count == `planned` || count == `estimated`) {
-		if c.clientTransport.header.Get("Prefer") == "" {
-			c.clientTransport.header.Set("Prefer", "count="+count)
-		} else {
-			c.clientTransport.header.Set("Prefer", c.clientTransport.header.Get("Prefer")+",count="+count)
-		}
+		req.Header.Add("Prefer", "count="+count)
 	}
 
 	resp, err := c.session.Do(req)
@@ -118,14 +111,16 @@ func (c *Client) Rpc(name string, count string, rpcBody interface{}) string {
 }
 
 type transport struct {
-	params  url.Values
 	header  http.Header
 	baseURL url.URL
 }
 
 func (t transport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.Header = t.header
+	for headerName, values := range t.header {
+		for _, val := range values {
+			req.Header.Add(headerName, val)
+		}
+	}
 	req.URL = t.baseURL.ResolveReference(req.URL)
-	req.URL.RawQuery = t.params.Encode()
 	return http.DefaultTransport.RoundTrip(req)
 }

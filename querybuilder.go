@@ -2,25 +2,29 @@ package postgrest
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 )
 
 type QueryBuilder struct {
-	client *Client
-	method string
-	body   []byte
+	client    *Client
+	method    string
+	body      []byte
+	tableName string
+	headers   map[string]string
+	params    map[string]string
 }
 
 func (q *QueryBuilder) ExecuteString() (string, error) {
-	return executeString(q.client, q.method, q.body)
+	return executeString(q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params)
 }
 
 func (q *QueryBuilder) Execute() ([]byte, error) {
-	return execute(q.client, q.method, q.body)
+	return execute(q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params)
 }
 
 func (q *QueryBuilder) ExecuteTo(to interface{}) error {
-	return executeTo(q.client, q.method, q.body, to)
+	return executeTo(q.client, q.method, q.body, to, []string{q.tableName}, q.headers, q.params)
 }
 
 func (q *QueryBuilder) Select(columns, count string, head bool) *FilterBuilder {
@@ -31,7 +35,7 @@ func (q *QueryBuilder) Select(columns, count string, head bool) *FilterBuilder {
 	}
 
 	if columns == "" {
-		q.client.clientTransport.params.Add("select", "*")
+		q.params["select"] = "*"
 	} else {
 		quoted := false
 		var resultArr = []string{}
@@ -45,24 +49,24 @@ func (q *QueryBuilder) Select(columns, count string, head bool) *FilterBuilder {
 			resultArr = append(resultArr, char)
 		}
 		result := strings.Join(resultArr, "")
-		q.client.clientTransport.params.Add("select", result)
+		q.params["select"] = result
 	}
 
 	if count != "" && (count == `exact` || count == `planned` || count == `estimated`) {
-		if q.client.clientTransport.header.Get("Prefer") == "" {
-			q.client.clientTransport.header.Set("Prefer", "count="+count)
-		} else {
-			q.client.clientTransport.header.Set("Prefer", q.client.clientTransport.header.Get("Prefer")+",count="+count)
+		currentValue, ok := q.params["Prefer"]
+		if ok && currentValue != "" {
+			count = fmt.Sprintf("%s,count=%s", currentValue, count)
 		}
+		q.params["Prefer"] = count
 	}
-	return &FilterBuilder{client: q.client, method: q.method, body: q.body}
+	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params}
 }
 
 func (q *QueryBuilder) Insert(value interface{}, upsert bool, onConflict, returning, count string) *FilterBuilder {
 	q.method = "POST"
 
 	if onConflict != "" && upsert {
-		q.client.clientTransport.params.Add("on_conflict", onConflict)
+		q.params["on_conflict"] = onConflict
 	}
 
 	headerList := []string{}
@@ -78,7 +82,7 @@ func (q *QueryBuilder) Insert(value interface{}, upsert bool, onConflict, return
 	if count != "" && (count == `exact` || count == `planned` || count == `estimated`) {
 		headerList = append(headerList, "count="+count)
 	}
-	q.client.clientTransport.header.Set("Prefer", strings.Join(headerList, ","))
+	q.headers["Prefer"] = strings.Join(headerList, ",")
 
 	// Get body if exist
 	var byteBody []byte = nil
@@ -91,13 +95,13 @@ func (q *QueryBuilder) Insert(value interface{}, upsert bool, onConflict, return
 		byteBody = jsonBody
 	}
 	q.body = byteBody
-	return &FilterBuilder{client: q.client, method: q.method, body: q.body}
+	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params}
 }
 func (q *QueryBuilder) Upsert(value interface{}, onConflict, returning, count string) *FilterBuilder {
 	q.method = "POST"
 
 	if onConflict != "" {
-		q.client.clientTransport.params.Add("on_conflict", onConflict)
+		q.params["on_conflict"] = onConflict
 	}
 
 	headerList := []string{"resolution=merge-duplicates"}
@@ -110,7 +114,7 @@ func (q *QueryBuilder) Upsert(value interface{}, onConflict, returning, count st
 	if count != "" && (count == `exact` || count == `planned` || count == `estimated`) {
 		headerList = append(headerList, "count="+count)
 	}
-	q.client.clientTransport.header.Set("Prefer", strings.Join(headerList, ","))
+	q.headers["Prefer"] = strings.Join(headerList, ",")
 
 	// Get body if exist
 	var byteBody []byte = nil
@@ -123,7 +127,7 @@ func (q *QueryBuilder) Upsert(value interface{}, onConflict, returning, count st
 		byteBody = jsonBody
 	}
 	q.body = byteBody
-	return &FilterBuilder{client: q.client, method: q.method, body: q.body}
+	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params}
 }
 
 func (q *QueryBuilder) Delete(returning, count string) *FilterBuilder {
@@ -139,8 +143,8 @@ func (q *QueryBuilder) Delete(returning, count string) *FilterBuilder {
 	if count != "" && (count == `exact` || count == `planned` || count == `estimated`) {
 		headerList = append(headerList, "count="+count)
 	}
-	q.client.clientTransport.header.Set("Prefer", strings.Join(headerList, ","))
-	return &FilterBuilder{client: q.client, method: q.method, body: q.body}
+	q.headers["Prefer"] = strings.Join(headerList, ",")
+	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params}
 }
 
 func (q *QueryBuilder) Update(value interface{}, returning, count string) *FilterBuilder {
@@ -156,7 +160,7 @@ func (q *QueryBuilder) Update(value interface{}, returning, count string) *Filte
 	if count != "" && (count == `exact` || count == `planned` || count == `estimated`) {
 		headerList = append(headerList, "count="+count)
 	}
-	q.client.clientTransport.header.Set("Prefer", strings.Join(headerList, ","))
+	q.headers["Prefer"] = strings.Join(headerList, ",")
 
 	// Get body if exist
 	var byteBody []byte = nil
@@ -169,5 +173,5 @@ func (q *QueryBuilder) Update(value interface{}, returning, count string) *Filte
 		byteBody = jsonBody
 	}
 	q.body = byteBody
-	return &FilterBuilder{client: q.client, method: q.method, body: q.body}
+	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params}
 }
