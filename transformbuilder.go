@@ -1,31 +1,35 @@
 package postgrest
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+)
 
 type TransformBuilder struct {
-	client *Client
-	method string
-	body   []byte
+	client  *Client
+	method  string
+	body    []byte
+	headers map[string]string
+	params  map[string]string
 }
 
 func (t *TransformBuilder) ExecuteString() (string, error) {
-	return executeString(t.client, t.method, t.body)
+	return executeString(t.client, t.method, t.body, []string{}, t.headers, t.params)
 }
 
 func (t *TransformBuilder) Execute() ([]byte, error) {
-	return execute(t.client, t.method, t.body)
+	return execute(t.client, t.method, t.body, []string{}, t.headers, t.params)
 }
 
 func (t *TransformBuilder) ExecuteTo(to interface{}) error {
-	return executeTo(t.client, t.method, t.body, to)
+	return executeTo(t.client, t.method, t.body, to, []string{}, t.headers, t.params)
 }
 
 func (t *TransformBuilder) Limit(count int, foreignTable string) *TransformBuilder {
-
 	if foreignTable != "" {
-		t.client.clientTransport.params.Add(foreignTable+".limit", fmt.Sprint(count))
+		t.params[foreignTable+".limit"] = strconv.Itoa(count)
 	} else {
-		t.client.clientTransport.params.Add("limit", fmt.Sprint(count))
+		t.params["limit"] = strconv.Itoa(count)
 	}
 
 	return t
@@ -39,7 +43,7 @@ func (t *TransformBuilder) Order(column, foreignTable string, ascending, nullsFi
 		key = "order"
 	}
 
-	existingOrder := t.client.clientTransport.params.Get(key)
+	existingOrder, ok := t.params[key]
 
 	var ascendingString string
 	if ascending {
@@ -55,28 +59,27 @@ func (t *TransformBuilder) Order(column, foreignTable string, ascending, nullsFi
 		nullsString = "nullslast"
 	}
 
-	if existingOrder != "" {
-		t.client.clientTransport.params.Set(key, existingOrder+","+column+"."+ascendingString+"."+nullsString)
+	if ok && existingOrder != "" {
+		t.params[key] = fmt.Sprintf("%s,%s.%s.%s", existingOrder, column, ascendingString, nullsString)
 	} else {
-		t.client.clientTransport.params.Add(key, column+"."+ascendingString+"."+nullsString)
+		t.params[key] = fmt.Sprintf("%s.%s.%s", column, ascendingString, nullsString)
 	}
 
 	return t
 }
 
 func (t *TransformBuilder) Range(from, to int, foreignTable string) *TransformBuilder {
-
 	if foreignTable != "" {
-		t.client.clientTransport.params.Add(foreignTable+".offset", fmt.Sprint(from))
-		t.client.clientTransport.params.Add(foreignTable+".limit", fmt.Sprint(to-from+1))
+		t.params[foreignTable+".offset"] = strconv.Itoa(from)
+		t.params[foreignTable+".limit"] = strconv.Itoa(to - from + 1)
 	} else {
-		t.client.clientTransport.params.Add("offset", fmt.Sprint(from))
-		t.client.clientTransport.params.Add("limit", fmt.Sprint(to-from+1))
+		t.params["offset"] = strconv.Itoa(from)
+		t.params["limit"] = strconv.Itoa(to - from + 1)
 	}
 	return t
 }
 
 func (t *TransformBuilder) Single() *TransformBuilder {
-	t.client.clientTransport.header.Set("Accept", "application/vnd.pgrst.object+json")
+	t.headers["Accept"] = "application/vnd.pgrst.object+json"
 	return t
 }

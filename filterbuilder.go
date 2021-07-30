@@ -8,21 +8,24 @@ import (
 )
 
 type FilterBuilder struct {
-	client *Client
-	method string
-	body   []byte
+	client    *Client
+	method    string
+	body      []byte
+	tableName string
+	headers   map[string]string
+	params    map[string]string
 }
 
 func (f *FilterBuilder) ExecuteString() (string, error) {
-	return executeString(f.client, f.method, f.body)
+	return executeString(f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params)
 }
 
 func (f *FilterBuilder) Execute() ([]byte, error) {
-	return execute(f.client, f.method, f.body)
+	return execute(f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params)
 }
 
 func (f *FilterBuilder) ExecuteTo(to interface{}) error {
-	return executeTo(f.client, f.method, f.body, to)
+	return executeTo(f.client, f.method, f.body, to, []string{f.tableName}, f.headers, f.params)
 }
 
 var filterOperators = []string{"eq", "neq", "gt", "gte", "lt", "lte", "like", "ilike", "is", "in", "cs", "cd", "sl", "sr", "nxl", "nxr", "adj", "ov", "fts", "plfts", "phfts", "wfts"}
@@ -41,15 +44,15 @@ func (f *FilterBuilder) Filter(column, operator, value string) *FilterBuilder {
 		f.client.ClientError = fmt.Errorf("invalid filter operator")
 		return f
 	}
-	f.client.clientTransport.params.Add(column, operator+"."+value)
+	f.params[column] = fmt.Sprintf("%s.%s", operator, value)
 	return f
 }
 
 func (f *FilterBuilder) Or(filters, foreignTable string) *FilterBuilder {
 	if foreignTable != "" {
-		f.client.clientTransport.params.Add(foreignTable+".or", fmt.Sprintf("(%s)", filters))
+		f.params[foreignTable+".or"] = fmt.Sprintf("(%s)", filters)
 	} else {
-		f.client.clientTransport.params.Add("or", fmt.Sprintf("(%s)", filters))
+		f.params[foreignTable+"or"] = fmt.Sprintf("(%s)", filters)
 	}
 	return f
 }
@@ -58,59 +61,59 @@ func (f *FilterBuilder) Not(column, operator, value string) *FilterBuilder {
 	if !isOperator(operator) {
 		return f
 	}
-	f.client.clientTransport.params.Add(column, "not."+operator+"."+value)
+	f.params[column] = fmt.Sprintf("not.%s.%s", operator, value)
 	return f
 }
 
 func (f *FilterBuilder) Match(userQuery map[string]string) *FilterBuilder {
 	for key, value := range userQuery {
-		f.client.clientTransport.params.Add(key, "eq."+value)
+		f.params[key] = "eq." + value
 	}
 	return f
 }
 
 func (f *FilterBuilder) Eq(column, value string) *FilterBuilder {
-	f.client.clientTransport.params.Add(column, "eq."+value)
+	f.params[column] = "eq." + value
 	return f
 }
 
 func (f *FilterBuilder) Neq(column, value string) *FilterBuilder {
-	f.client.clientTransport.params.Add(column, "neq."+value)
+	f.params[column] = "neq." + value
 	return f
 }
 
 func (f *FilterBuilder) Gt(column, value string) *FilterBuilder {
-	f.client.clientTransport.params.Add(column, "gt."+value)
+	f.params[column] = "gt." + value
 	return f
 }
 
 func (f *FilterBuilder) Gte(column, value string) *FilterBuilder {
-	f.client.clientTransport.params.Add(column, "gte."+value)
+	f.params[column] = "gte." + value
 	return f
 }
 
 func (f *FilterBuilder) Lt(column, value string) *FilterBuilder {
-	f.client.clientTransport.params.Add(column, "lt."+value)
+	f.params[column] = "lt." + value
 	return f
 }
 
 func (f *FilterBuilder) Lte(column, value string) *FilterBuilder {
-	f.client.clientTransport.params.Add(column, "lte."+value)
+	f.params[column] = "lte." + value
 	return f
 }
 
 func (f *FilterBuilder) Like(column, value string) *FilterBuilder {
-	f.client.clientTransport.params.Add(column, "like."+value)
+	f.params[column] = "like." + value
 	return f
 }
 
 func (f *FilterBuilder) Ilike(column, value string) *FilterBuilder {
-	f.client.clientTransport.params.Add(column, "ilike."+value)
+	f.params[column] = "ilike." + value
 	return f
 }
 
 func (f *FilterBuilder) Is(column, value string) *FilterBuilder {
-	f.client.clientTransport.params.Add(column, "is."+value)
+	f.params[column] = "is." + value
 	return f
 }
 
@@ -125,17 +128,17 @@ func (f *FilterBuilder) In(column string, values []string) *FilterBuilder {
 			cleanedValues = append(cleanedValues, value)
 		}
 	}
-	f.client.clientTransport.params.Add(column, fmt.Sprintf("in.(%s)", strings.Join(cleanedValues, ",")))
+	f.params[column] = fmt.Sprintf("in.(%s)", strings.Join(cleanedValues, ","))
 	return f
 }
 
 func (f *FilterBuilder) Contains(column string, value []string) *FilterBuilder {
-	f.client.clientTransport.params.Add(column, "cs."+strings.Join(value, ","))
+	f.params[column] = "cs." + strings.Join(value, ",")
 	return f
 }
 
 func (f *FilterBuilder) ContainedBy(column string, value []string) *FilterBuilder {
-	f.client.clientTransport.params.Add(column, "cd."+strings.Join(value, ","))
+	f.params[column] = "cd." + strings.Join(value, ",")
 	return f
 }
 
@@ -144,7 +147,7 @@ func (f *FilterBuilder) ContainsObject(column string, value interface{}) *Filter
 	if err != nil {
 		f.client.ClientError = err
 	}
-	f.client.clientTransport.params.Add(column, "cs."+string(sum))
+	f.params[column] = "cs." + string(sum)
 	return f
 }
 
@@ -153,37 +156,37 @@ func (f *FilterBuilder) ContainedByObject(column string, value interface{}) *Fil
 	if err != nil {
 		f.client.ClientError = err
 	}
-	f.client.clientTransport.params.Add(column, "cs."+string(sum))
+	f.params[column] = "cs." + string(sum)
 	return f
 }
 
 func (f *FilterBuilder) RangeLt(column, value string) *FilterBuilder {
-	f.client.clientTransport.params.Add(column, "sl."+value)
+	f.params[column] = "sl." + value
 	return f
 }
 
 func (f *FilterBuilder) RangeGt(column, value string) *FilterBuilder {
-	f.client.clientTransport.params.Add(column, "sr."+value)
+	f.params[column] = "sr." + value
 	return f
 }
 
 func (f *FilterBuilder) RangeGte(column, value string) *FilterBuilder {
-	f.client.clientTransport.params.Add(column, "nxl."+value)
+	f.params[column] = "nxl." + value
 	return f
 }
 
 func (f *FilterBuilder) RangeLte(column, value string) *FilterBuilder {
-	f.client.clientTransport.params.Add(column, "nxr."+value)
+	f.params[column] = "nxr." + value
 	return f
 }
 
 func (f *FilterBuilder) RangeAdjacent(column, value string) *FilterBuilder {
-	f.client.clientTransport.params.Add(column, "adj."+value)
+	f.params[column] = "adj." + value
 	return f
 }
 
 func (f *FilterBuilder) Overlaps(column string, value []string) *FilterBuilder {
-	f.client.clientTransport.params.Add(column, "ov."+strings.Join(value, ","))
+	f.params[column] = "ov." + strings.Join(value, ",")
 	return f
 }
 
@@ -204,6 +207,6 @@ func (f *FilterBuilder) TextSearch(column, userQuery, config, tsType string) *Fi
 	if config != "" {
 		configPart = fmt.Sprintf("(%s)", config)
 	}
-	f.client.clientTransport.params.Add(column, typePart+"fts"+configPart+"."+userQuery)
+	f.params[column] = typePart + "fts" + configPart + "." + userQuery
 	return f
 }
