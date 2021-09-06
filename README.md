@@ -6,7 +6,7 @@ Golang client for [PostgREST](https://postgrest.org). The goal of this library i
 
 ## Documentation
 
-Full documentation can be found on our [website](https://supabase.io/docs/postgrest/client/postgrest-client).
+Full documentation can be found [here](https://pkg.go.dev/github.com/supabase/postgrest-go).
 
 ### Quick start
 
@@ -42,10 +42,10 @@ func main() {
 }
 ```
 
-- select(): https://supabase.io/docs/postgrest/client/select
-- insert(): https://supabase.io/docs/postgrest/client/insert
-- update(): https://supabase.io/docs/postgrest/client/update
-- delete(): https://supabase.io/docs/postgrest/client/delete
+- select(): https://supabase.io/docs/reference/javascript/select
+- insert(): https://supabase.io/docs/reference/javascript/insert
+- update(): https://supabase.io/docs/reference/javascript/update
+- delete(): https://supabase.io/docs/reference/javascript/delete
 
 ## License
 
