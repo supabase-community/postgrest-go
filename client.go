@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path"
 )
 
 func NewClient(rawURL, schema string, headers map[string]string) *Client {
@@ -77,7 +78,8 @@ func (c *Client) Rpc(name string, count string, rpcBody interface{}) string {
 	}
 
 	readerBody := bytes.NewBuffer(byteBody)
-	req, err := http.NewRequest("POST", "/rpc/"+name, readerBody)
+	url := path.Join(c.clientTransport.baseURL.Path, "rpc", name)
+	req, err := http.NewRequest("POST", url, readerBody)
 	if err != nil {
 		c.ClientError = err
 		return ""
