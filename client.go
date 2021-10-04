@@ -6,7 +6,13 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os/exec"
 	"path"
+	"strings"
+)
+
+var (
+	version = "Not Set"
 )
 
 func NewClient(rawURL, schema string, headers map[string]string) *Client {
@@ -30,11 +36,19 @@ func NewClient(rawURL, schema string, headers map[string]string) *Client {
 		schema = "public"
 	}
 
+	cmd, b := exec.Command("git", "describe", "--tag"), new(strings.Builder)
+	cmd.Stdout = b
+	cmd.Run()
+	s := strings.TrimRight(b.String(), "\n")
+
+	version = string(s)
+
 	// Set required headers
 	c.clientTransport.header.Set("Accept", "application/json")
 	c.clientTransport.header.Set("Content-Type", "application/json")
 	c.clientTransport.header.Set("Accept-Profile", schema)
 	c.clientTransport.header.Set("Content-Profile", schema)
+	c.clientTransport.header.Set("X-Client-Info: ", "postgrest-go/"+version)
 
 	// Set optional headers if exist
 	for key, value := range headers {
