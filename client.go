@@ -6,13 +6,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os/exec"
 	"path"
-	"strings"
 )
 
 var (
-	version = "Not Set"
+	version = "v0.0.3"
 )
 
 func NewClient(rawURL, schema string, headers map[string]string) *Client {
@@ -35,13 +33,6 @@ func NewClient(rawURL, schema string, headers map[string]string) *Client {
 	if schema == "" {
 		schema = "public"
 	}
-
-	cmd, b := exec.Command("git", "describe", "--tag"), new(strings.Builder)
-	cmd.Stdout = b
-	cmd.Run()
-	s := strings.TrimRight(b.String(), "\n")
-
-	version = string(s)
 
 	// Set required headers
 	c.clientTransport.header.Set("Accept", "application/json")
