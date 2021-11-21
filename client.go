@@ -39,7 +39,7 @@ func NewClient(rawURL, schema string, headers map[string]string) *Client {
 	c.clientTransport.header.Set("Content-Type", "application/json")
 	c.clientTransport.header.Set("Accept-Profile", schema)
 	c.clientTransport.header.Set("Content-Profile", schema)
-	c.clientTransport.header.Set("X-Client-Info: ", "postgrest-go/"+version)
+	c.clientTransport.header.Set("X-Client-Info", "postgrest-go/"+version)
 
 	// Set optional headers if exist
 	for key, value := range headers {
