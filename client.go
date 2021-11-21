@@ -57,6 +57,7 @@ type Client struct {
 
 func (c *Client) TokenAuth(token string) *Client {
 	c.clientTransport.header.Set("Authorization", "Basic "+token)
+	c.clientTransport.header.Set("apiKey", token)
 	return c
 }
 
