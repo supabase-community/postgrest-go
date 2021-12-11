@@ -6,6 +6,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path"
+)
+
+var (
+	version = "v0.0.3"
 )
 
 func NewClient(rawURL, schema string, headers map[string]string) *Client {
@@ -34,6 +39,7 @@ func NewClient(rawURL, schema string, headers map[string]string) *Client {
 	c.clientTransport.header.Set("Content-Type", "application/json")
 	c.clientTransport.header.Set("Accept-Profile", schema)
 	c.clientTransport.header.Set("Content-Profile", schema)
+	c.clientTransport.header.Set("X-Client-Info", "postgrest-go/"+version)
 
 	// Set optional headers if exist
 	for key, value := range headers {
@@ -51,6 +57,7 @@ type Client struct {
 
 func (c *Client) TokenAuth(token string) *Client {
 	c.clientTransport.header.Set("Authorization", "Basic "+token)
+	c.clientTransport.header.Set("apikey", token)
 	return c
 }
 
@@ -77,7 +84,8 @@ func (c *Client) Rpc(name string, count string, rpcBody interface{}) string {
 	}
 
 	readerBody := bytes.NewBuffer(byteBody)
-	req, err := http.NewRequest("POST", "/rpc/"+name, readerBody)
+	url := path.Join(c.clientTransport.baseURL.Path, "rpc", name)
+	req, err := http.NewRequest("POST", url, readerBody)
 	if err != nil {
 		c.ClientError = err
 		return ""
