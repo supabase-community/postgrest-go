@@ -19,10 +19,11 @@ var (
 func main() {
 	client := postgrest.NewClient(REST_URL, schema, headers)
 
-	res, err := client.From("todos").Select("id,task,done", "", false).Eq("task", "that created from postgrest-go").Execute()
+	res, count, err := client.From("todos").Select("id,task,done", "", false).Eq("task", "that created from postgrest-go").Execute()
 	if err != nil {
 		panic(err)
 	}
 
 	fmt.Println(res)
+	fmt.Printf("count: %v", count)
 }

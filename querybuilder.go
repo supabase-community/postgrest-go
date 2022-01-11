@@ -15,11 +15,11 @@ type QueryBuilder struct {
 	params    map[string]string
 }
 
-func (q *QueryBuilder) ExecuteString() (string, error) {
+func (q *QueryBuilder) ExecuteString() (string, countType, error) {
 	return executeString(q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params)
 }
 
-func (q *QueryBuilder) Execute() ([]byte, error) {
+func (q *QueryBuilder) Execute() ([]byte, countType, error) {
 	return execute(q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params)
 }
 
@@ -53,11 +53,12 @@ func (q *QueryBuilder) Select(columns, count string, head bool) *FilterBuilder {
 	}
 
 	if count != "" && (count == `exact` || count == `planned` || count == `estimated`) {
-		currentValue, ok := q.params["Prefer"]
+		currentValue, ok := q.headers["Prefer"]
 		if ok && currentValue != "" {
-			count = fmt.Sprintf("%s,count=%s", currentValue, count)
+			q.headers["Prefer"] = fmt.Sprintf("%s,count=%s", currentValue, count)
+		} else {
+			q.headers["Prefer"] = fmt.Sprintf("count=%s", count)
 		}
-		q.params["Prefer"] = count
 	}
 	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params}
 }

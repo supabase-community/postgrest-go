@@ -19,3 +19,8 @@
 
 #VSCode Folder Ignore
 .vscode
+
+# Supabase
+supabase
+
+.env
