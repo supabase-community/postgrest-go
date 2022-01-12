@@ -13,11 +13,11 @@ type TransformBuilder struct {
 	params  map[string]string
 }
 
-func (t *TransformBuilder) ExecuteString() (string, error) {
+func (t *TransformBuilder) ExecuteString() (string, countType, error) {
 	return executeString(t.client, t.method, t.body, []string{}, t.headers, t.params)
 }
 
-func (t *TransformBuilder) Execute() ([]byte, error) {
+func (t *TransformBuilder) Execute() ([]byte, countType, error) {
 	return execute(t.client, t.method, t.body, []string{}, t.headers, t.params)
 }
 

@@ -16,11 +16,11 @@ type FilterBuilder struct {
 	params    map[string]string
 }
 
-func (f *FilterBuilder) ExecuteString() (string, error) {
+func (f *FilterBuilder) ExecuteString() (string, countType, error) {
 	return executeString(f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params)
 }
 
-func (f *FilterBuilder) Execute() ([]byte, error) {
+func (f *FilterBuilder) Execute() ([]byte, countType, error) {
 	return execute(f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params)
 }
 
