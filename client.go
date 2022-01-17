@@ -9,8 +9,8 @@ import (
 	"path"
 )
 
-const (
-	version = "v0.1.0"
+var (
+	version = "v0.0.6"
 )
 
 // NewClient constructs a new client given a URL to a Postgrest instance.
