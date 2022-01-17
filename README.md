@@ -52,9 +52,9 @@ func main() {
 
 Some tests are implemented to run against mocked Postgrest endpoints. Optionally, tests can be run against an actual Postgrest instance by setting a `POSTGREST_URL` environment variable to the fully-qualified URL to a Postgrest instance, and, optionally, an `API_KEY` environment variable (if, for example, testing against a local Supabase instance).
 
-A [script](/test/populate.sql) is included in the test directory that can be used to populate the test database.
+A [script](test/seed.sql) is included in the test directory that can be used to seed the test database.
 
-To run all tests with endpoint mocking:
+To run all tests:
 
 ```bash
 go test ./...
