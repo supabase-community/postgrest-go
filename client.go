@@ -10,9 +10,10 @@ import (
 )
 
 var (
-	version = "v0.0.3"
+	version = "v0.0.6"
 )
 
+// NewClient constructs a new client given a URL to a Postgrest instance.
 func NewClient(rawURL, schema string, headers map[string]string) *Client {
 	// Create URL from rawURL
 	baseURL, err := url.Parse(rawURL)
@@ -41,7 +42,7 @@ func NewClient(rawURL, schema string, headers map[string]string) *Client {
 	c.clientTransport.header.Set("Content-Profile", schema)
 	c.clientTransport.header.Set("X-Client-Info", "postgrest-go/"+version)
 
-	// Set optional headers if exist
+	// Set optional headers if they exist
 	for key, value := range headers {
 		c.clientTransport.header.Set(key, value)
 	}
@@ -55,24 +56,29 @@ type Client struct {
 	clientTransport transport
 }
 
+// TokenAuth sets authorization headers for subsequent requests.
 func (c *Client) TokenAuth(token string) *Client {
 	c.clientTransport.header.Set("Authorization", "Basic "+token)
 	c.clientTransport.header.Set("apikey", token)
 	return c
 }
 
+// ChangeSchema modifies the schema for subsequent requests.
 func (c *Client) ChangeSchema(schema string) *Client {
 	c.clientTransport.header.Set("Accept-Profile", schema)
 	c.clientTransport.header.Set("Content-Profile", schema)
 	return c
 }
 
+// From sets the table to query from.
 func (c *Client) From(table string) *QueryBuilder {
 	return &QueryBuilder{client: c, tableName: table, headers: map[string]string{}, params: map[string]string{}}
 }
 
+// Rpc executes a Postgres function (a.k.a., Remote Prodedure Call), given the
+// function name and, optionally, a body, returning the result as a string.
 func (c *Client) Rpc(name string, count string, rpcBody interface{}) string {
-	// Get body if exist
+	// Get body if it exists
 	var byteBody []byte = nil
 	if rpcBody != nil {
 		jsonBody, err := json.Marshal(rpcBody)

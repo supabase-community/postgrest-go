@@ -7,24 +7,31 @@ import (
 	"strings"
 )
 
+// FilterBuilder describes a builder for a filtered result set.
 type FilterBuilder struct {
 	client    *Client
-	method    string
+	method    string // One of "HEAD", "GET", "POST", "PUT", "DELETE"
 	body      []byte
 	tableName string
 	headers   map[string]string
 	params    map[string]string
 }
 
+// ExecuteString runs the Postgrest query, returning the result as a JSON
+// string.
 func (f *FilterBuilder) ExecuteString() (string, countType, error) {
 	return executeString(f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params)
 }
 
+// Execute runs the Postgrest query, returning the result as a byte slice.
 func (f *FilterBuilder) Execute() ([]byte, countType, error) {
 	return execute(f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params)
 }
 
-func (f *FilterBuilder) ExecuteTo(to interface{}) error {
+// ExecuteTo runs the Postgrest query, encoding the result to the supplied
+// interface. Note that the argument for the to parameter should always be a
+// reference to a slice.
+func (f *FilterBuilder) ExecuteTo(to interface{}) (countType, error) {
 	return executeTo(f.client, f.method, f.body, to, []string{f.tableName}, f.headers, f.params)
 }
 
@@ -39,6 +46,8 @@ func isOperator(value string) bool {
 	return false
 }
 
+// Filter adds a filtering operator to the query. For a list of available
+// operators, see: https://postgrest.org/en/stable/api.html#operators
 func (f *FilterBuilder) Filter(column, operator, value string) *FilterBuilder {
 	if !isOperator(operator) {
 		f.client.ClientError = fmt.Errorf("invalid filter operator")
@@ -190,6 +199,8 @@ func (f *FilterBuilder) Overlaps(column string, value []string) *FilterBuilder {
 	return f
 }
 
+// TextSearch performs a full-text search filter. For more information, see
+// https://postgrest.org/en/stable/api.html#fts.
 func (f *FilterBuilder) TextSearch(column, userQuery, config, tsType string) *FilterBuilder {
 	var typePart, configPart string
 	if tsType == "plain" {

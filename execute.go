@@ -11,11 +11,12 @@ import (
 	"strings"
 )
 
+// countType is the integer type returned from execute functions when a count
+// specifier is supplied to a builder.
 type countType = int64
 
 // ExecuteError is the error response format from postgrest. We really
 // only use Code and Message, but we'll keep it as a struct for now.
-
 type ExecuteError struct {
 	Hint    string `json:"hint"`
 	Details string `json:"details"`
@@ -93,15 +94,15 @@ func execute(client *Client, method string, body []byte, urlFragments []string, 
 	return executeHelper(client, method, body, urlFragments, headers, params)
 }
 
-func executeTo(client *Client, method string, body []byte, to interface{}, urlFragments []string, headers map[string]string, params map[string]string) error {
-	resp, _, err := executeHelper(client, method, body, urlFragments, headers, params)
+func executeTo(client *Client, method string, body []byte, to interface{}, urlFragments []string, headers map[string]string, params map[string]string) (countType, error) {
+	resp, count, err := executeHelper(client, method, body, urlFragments, headers, params)
 
 	if err != nil {
-		return err
+		return count, err
 	}
 
 	readableRes := bytes.NewBuffer(resp)
 
 	err = json.NewDecoder(readableRes).Decode(&to)
-	return err
+	return count, err
 }

@@ -16,6 +16,12 @@ var mockResponses bool = false
 
 var mockPath *regexp.Regexp
 
+type TestResult struct {
+	ID    float64 `json:"id"`
+	Name  string  `name:"sean"`
+	Email string  `email:"sean@test.com"`
+}
+
 // A mock table/result set.
 var users = []map[string]interface{}{
 	{

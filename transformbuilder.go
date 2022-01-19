@@ -21,7 +21,7 @@ func (t *TransformBuilder) Execute() ([]byte, countType, error) {
 	return execute(t.client, t.method, t.body, []string{}, t.headers, t.params)
 }
 
-func (t *TransformBuilder) ExecuteTo(to interface{}) error {
+func (t *TransformBuilder) ExecuteTo(to interface{}) (countType, error) {
 	return executeTo(t.client, t.method, t.body, to, []string{}, t.headers, t.params)
 }
 
