@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -219,5 +220,75 @@ func (f *FilterBuilder) TextSearch(column, userQuery, config, tsType string) *Fi
 		configPart = fmt.Sprintf("(%s)", config)
 	}
 	f.params[column] = typePart + "fts" + configPart + "." + userQuery
+	return f
+}
+
+// OrderOpts describes the options to be provided to Order.
+type OrderOpts struct {
+	Ascending    bool
+	NullsFirst   bool
+	ForeignTable string
+}
+
+// DefaultOrderOpts is the default set of options used by Order.
+var DefaultOrderOpts = OrderOpts{
+	Ascending:    false,
+	NullsFirst:   false,
+	ForeignTable: "",
+}
+
+func (f *FilterBuilder) Limit(count int, foreignTable string) *FilterBuilder {
+	if foreignTable != "" {
+		f.params[foreignTable+".limit"] = strconv.Itoa(count)
+	} else {
+		f.params["limit"] = strconv.Itoa(count)
+	}
+
+	return f
+}
+
+func (f *FilterBuilder) Order(column string, opts *OrderOpts) *FilterBuilder {
+	if opts == nil {
+		opts = &DefaultOrderOpts
+	}
+
+	key := "order"
+	if opts.ForeignTable != "" {
+		key = opts.ForeignTable + ".order"
+	}
+
+	ascendingString := "desc"
+	if opts.Ascending {
+		ascendingString = "asc"
+	}
+
+	nullsString := "nullslast"
+	if opts.NullsFirst {
+		nullsString = "nullsfirst"
+	}
+
+	existingOrder, ok := f.params[key]
+	if ok && existingOrder != "" {
+		f.params[key] = fmt.Sprintf("%s,%s.%s.%s", existingOrder, column, ascendingString, nullsString)
+	} else {
+		f.params[key] = fmt.Sprintf("%s.%s.%s", column, ascendingString, nullsString)
+	}
+
+	return f
+}
+
+func (f *FilterBuilder) Range(from, to int, foreignTable string) *FilterBuilder {
+	if foreignTable != "" {
+		f.params[foreignTable+".offset"] = strconv.Itoa(from)
+		f.params[foreignTable+".limit"] = strconv.Itoa(to - from + 1)
+	} else {
+		f.params["offset"] = strconv.Itoa(from)
+		f.params["limit"] = strconv.Itoa(to - from + 1)
+	}
+	return f
+}
+
+func (f *FilterBuilder) Single() *FilterBuilder {
+	f.headers["Accept"] = "application/vnd.pgrst.object+json"
 	return f
 }
