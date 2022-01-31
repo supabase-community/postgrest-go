@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -17,18 +18,18 @@ type FilterBuilder struct {
 	params    map[string]string
 }
 
-// ExecuteString runs the Postgrest query, returning the result as a JSON
+// ExecuteString runs the PostgREST query, returning the result as a JSON
 // string.
 func (f *FilterBuilder) ExecuteString() (string, countType, error) {
 	return executeString(f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params)
 }
 
-// Execute runs the Postgrest query, returning the result as a byte slice.
+// Execute runs the PostgREST query, returning the result as a byte slice.
 func (f *FilterBuilder) Execute() ([]byte, countType, error) {
 	return execute(f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params)
 }
 
-// ExecuteTo runs the Postgrest query, encoding the result to the supplied
+// ExecuteTo runs the PostgREST query, encoding the result to the supplied
 // interface. Note that the argument for the to parameter should always be a
 // reference to a slice.
 func (f *FilterBuilder) ExecuteTo(to interface{}) (countType, error) {
@@ -219,5 +220,81 @@ func (f *FilterBuilder) TextSearch(column, userQuery, config, tsType string) *Fi
 		configPart = fmt.Sprintf("(%s)", config)
 	}
 	f.params[column] = typePart + "fts" + configPart + "." + userQuery
+	return f
+}
+
+// OrderOpts describes the options to be provided to Order.
+type OrderOpts struct {
+	Ascending    bool
+	NullsFirst   bool
+	ForeignTable string
+}
+
+// DefaultOrderOpts is the default set of options used by Order.
+var DefaultOrderOpts = OrderOpts{
+	Ascending:    false,
+	NullsFirst:   false,
+	ForeignTable: "",
+}
+
+// Limits the result to the specified count.
+func (f *FilterBuilder) Limit(count int, foreignTable string) *FilterBuilder {
+	if foreignTable != "" {
+		f.params[foreignTable+".limit"] = strconv.Itoa(count)
+	} else {
+		f.params["limit"] = strconv.Itoa(count)
+	}
+
+	return f
+}
+
+// Orders the result with the specified column. A pointer to an OrderOpts
+// object can be supplied to specify ordering options.
+func (f *FilterBuilder) Order(column string, opts *OrderOpts) *FilterBuilder {
+	if opts == nil {
+		opts = &DefaultOrderOpts
+	}
+
+	key := "order"
+	if opts.ForeignTable != "" {
+		key = opts.ForeignTable + ".order"
+	}
+
+	ascendingString := "desc"
+	if opts.Ascending {
+		ascendingString = "asc"
+	}
+
+	nullsString := "nullslast"
+	if opts.NullsFirst {
+		nullsString = "nullsfirst"
+	}
+
+	existingOrder, ok := f.params[key]
+	if ok && existingOrder != "" {
+		f.params[key] = fmt.Sprintf("%s,%s.%s.%s", existingOrder, column, ascendingString, nullsString)
+	} else {
+		f.params[key] = fmt.Sprintf("%s.%s.%s", column, ascendingString, nullsString)
+	}
+
+	return f
+}
+
+// Limits the result to rows within the specified range, inclusive.
+func (f *FilterBuilder) Range(from, to int, foreignTable string) *FilterBuilder {
+	if foreignTable != "" {
+		f.params[foreignTable+".offset"] = strconv.Itoa(from)
+		f.params[foreignTable+".limit"] = strconv.Itoa(to - from + 1)
+	} else {
+		f.params["offset"] = strconv.Itoa(from)
+		f.params["limit"] = strconv.Itoa(to - from + 1)
+	}
+	return f
+}
+
+// Retrieves only one row from the result. The total result set must be one row
+// (e.g., by using Limit). Otherwise, this will result in an error.
+func (f *FilterBuilder) Single() *FilterBuilder {
+	f.headers["Accept"] = "application/vnd.pgrst.object+json"
 	return f
 }
