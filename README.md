@@ -28,7 +28,7 @@ import (
 )
 
 func main() {
-	client := postgrest.NewClient("http://localhost:3000", "", nil)
+	client := postgrest.NewClient("http://localhost:3000/rest/v1", "", nil)
 	if client.ClientError != nil {
 		panic(client.ClientError)
 	}
