@@ -10,8 +10,14 @@ import (
 )
 
 var (
-	version = "v0.0.6"
+	version = "v0.0.7"
 )
+
+type Client struct {
+	ClientError     error
+	session         http.Client
+	clientTransport transport
+}
 
 // NewClient constructs a new client given a URL to a Postgrest instance.
 func NewClient(rawURL, schema string, headers map[string]string) *Client {
@@ -48,12 +54,6 @@ func NewClient(rawURL, schema string, headers map[string]string) *Client {
 	}
 
 	return &c
-}
-
-type Client struct {
-	ClientError     error
-	session         http.Client
-	clientTransport transport
 }
 
 // TokenAuth sets authorization headers for subsequent requests.
