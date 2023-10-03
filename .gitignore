@@ -16,7 +16,7 @@
 
 #Ide Folder Ignore
 .idea
-
+pgdata
 #VSCode Folder Ignore
 .vscode
 
