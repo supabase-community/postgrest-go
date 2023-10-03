@@ -11,13 +11,13 @@ import (
 )
 
 var (
-	REST_URL = `http://localhost:3000`
-	headers  = map[string]string{}
-	schema   = "public"
+	RestUrl = `http://localhost:3000`
+	headers = map[string]string{}
+	schema  = "public"
 )
 
 func main() {
-	client := postgrest.NewClient(REST_URL, schema, headers)
+	client := postgrest.NewClient(RestUrl, schema, headers)
 
 	res, count, err := client.From("todos").Select("id,task,done", "", false).Eq("task", "that created from postgrest-go").Execute()
 	if err != nil {

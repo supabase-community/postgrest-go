@@ -3,6 +3,7 @@ package postgrest
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -12,6 +13,12 @@ import (
 var (
 	version = "v0.0.6"
 )
+
+type Client struct {
+	ClientError     error
+	session         http.Client
+	clientTransport transport
+}
 
 // NewClient constructs a new client given a URL to a Postgrest instance.
 func NewClient(rawURL, schema string, headers map[string]string) *Client {
@@ -50,10 +57,25 @@ func NewClient(rawURL, schema string, headers map[string]string) *Client {
 	return &c
 }
 
-type Client struct {
-	ClientError     error
-	session         http.Client
-	clientTransport transport
+func (c *Client) Ping() bool {
+	req, err := http.NewRequest("GET", path.Join(c.clientTransport.baseURL.Path, ""), nil)
+	if err != nil {
+		c.ClientError = err
+		return false
+	}
+
+	resp, err := c.session.Do(req)
+	if err != nil {
+		c.ClientError = err
+		return false
+	}
+
+	if resp.Status != "200 OK" {
+		c.ClientError = errors.New("ping failed")
+		return false
+	}
+
+	return true
 }
 
 // TokenAuth sets authorization headers for subsequent requests.
