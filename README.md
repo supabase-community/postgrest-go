@@ -13,7 +13,7 @@ Full documentation can be found [here](https://pkg.go.dev/github.com/supabase/po
 Install
 
 ```bash
-go get github.com/supabase/postgrest-go
+go get github.com/supabase-community/postgrest-go
 ```
 
 Usage

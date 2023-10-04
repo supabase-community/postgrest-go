@@ -61,17 +61,20 @@ func (c *Client) Ping() bool {
 	req, err := http.NewRequest("GET", path.Join(c.clientTransport.baseURL.Path, ""), nil)
 	if err != nil {
 		c.ClientError = err
+
 		return false
 	}
 
 	resp, err := c.session.Do(req)
 	if err != nil {
 		c.ClientError = err
+
 		return false
 	}
 
 	if resp.Status != "200 OK" {
 		c.ClientError = errors.New("ping failed")
+
 		return false
 	}
 
@@ -157,6 +160,7 @@ func (t transport) RoundTrip(req *http.Request) (*http.Response, error) {
 			req.Header.Add(headerName, val)
 		}
 	}
+
 	req.URL = t.baseURL.ResolveReference(req.URL)
 	return http.DefaultTransport.RoundTrip(req)
 }

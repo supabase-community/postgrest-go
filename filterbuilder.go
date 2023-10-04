@@ -20,12 +20,12 @@ type FilterBuilder struct {
 
 // ExecuteString runs the PostgREST query, returning the result as a JSON
 // string.
-func (f *FilterBuilder) ExecuteString() (string, countType, error) {
+func (f *FilterBuilder) ExecuteString() (string, int64, error) {
 	return executeString(f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params)
 }
 
 // Execute runs the PostgREST query, returning the result as a byte slice.
-func (f *FilterBuilder) Execute() ([]byte, countType, error) {
+func (f *FilterBuilder) Execute() ([]byte, int64, error) {
 	return execute(f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params)
 }
 
@@ -237,7 +237,7 @@ var DefaultOrderOpts = OrderOpts{
 	ForeignTable: "",
 }
 
-// Limits the result to the specified count.
+// Limit the result to the specified count.
 func (f *FilterBuilder) Limit(count int, foreignTable string) *FilterBuilder {
 	if foreignTable != "" {
 		f.params[foreignTable+".limit"] = strconv.Itoa(count)
@@ -248,7 +248,7 @@ func (f *FilterBuilder) Limit(count int, foreignTable string) *FilterBuilder {
 	return f
 }
 
-// Orders the result with the specified column. A pointer to an OrderOpts
+// Order the result with the specified column. A pointer to an OrderOpts
 // object can be supplied to specify ordering options.
 func (f *FilterBuilder) Order(column string, opts *OrderOpts) *FilterBuilder {
 	if opts == nil {
@@ -280,7 +280,7 @@ func (f *FilterBuilder) Order(column string, opts *OrderOpts) *FilterBuilder {
 	return f
 }
 
-// Limits the result to rows within the specified range, inclusive.
+// Range Limits the result to rows within the specified range, inclusive.
 func (f *FilterBuilder) Range(from, to int, foreignTable string) *FilterBuilder {
 	if foreignTable != "" {
 		f.params[foreignTable+".offset"] = strconv.Itoa(from)
@@ -292,7 +292,7 @@ func (f *FilterBuilder) Range(from, to int, foreignTable string) *FilterBuilder 
 	return f
 }
 
-// Retrieves only one row from the result. The total result set must be one row
+// Single Retrieves only one row from the result. The total result set must be one row
 // (e.g., by using Limit). Otherwise, this will result in an error.
 func (f *FilterBuilder) Single() *FilterBuilder {
 	f.headers["Accept"] = "application/vnd.pgrst.object+json"
