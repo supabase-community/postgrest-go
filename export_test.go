@@ -12,7 +12,7 @@ const apiKeyEnv = "API_KEY"
 // If false, mock responses with httpmock. If true, use POSTGREST_URL (and
 // optionally, API_KEY for Supabase), to run tests against an actual Postgres
 // instance.
-var mockResponses bool = false
+var mockResponses = false
 
 var mockPath *regexp.Regexp
 

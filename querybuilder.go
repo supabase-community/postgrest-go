@@ -18,19 +18,19 @@ type QueryBuilder struct {
 
 // ExecuteString runs the Postgrest query, returning the result as a JSON
 // string.
-func (q *QueryBuilder) ExecuteString() (string, countType, error) {
+func (q *QueryBuilder) ExecuteString() (string, int64, error) {
 	return executeString(q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params)
 }
 
 // Execute runs the Postgrest query, returning the result as a byte slice.
-func (q *QueryBuilder) Execute() ([]byte, countType, error) {
+func (q *QueryBuilder) Execute() ([]byte, int64, error) {
 	return execute(q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params)
 }
 
 // ExecuteTo runs the Postgrest query, encoding the result to the supplied
 // interface. Note that the argument for the to parameter should always be a
 // reference to a slice.
-func (q *QueryBuilder) ExecuteTo(to interface{}) (countType, error) {
+func (q *QueryBuilder) ExecuteTo(to interface{}) (int64, error) {
 	return executeTo(q.client, q.method, q.body, to, []string{q.tableName}, q.headers, q.params)
 }
 
@@ -46,7 +46,7 @@ func (q *QueryBuilder) Select(columns, count string, head bool) *FilterBuilder {
 		q.params["select"] = "*"
 	} else {
 		quoted := false
-		var resultArr = []string{}
+		var resultArr []string
 		for _, char := range strings.Split(columns, "") {
 			if char == `"` {
 				quoted = !quoted
@@ -79,7 +79,7 @@ func (q *QueryBuilder) Insert(value interface{}, upsert bool, onConflict, return
 		q.params["on_conflict"] = onConflict
 	}
 
-	headerList := []string{}
+	var headerList []string
 	if upsert {
 		headerList = append(headerList, "resolution=merge-duplicates")
 	}
