@@ -3,15 +3,15 @@ on:
   push:
     branches:
       - main
-      - dev
+      - development
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - name: Set up Go 1.19
+    - name: Set up Go 1.21
       uses: actions/setup-go@v2
       with:
-        go-version: 1.19
+        go-version: 1.21.1
       id: go
     - name: Check out code into the Go module directory
       uses: actions/checkout@v2
@@ -27,6 +27,6 @@ jobs:
     - name: Run Tests
       run: go test -v ./...
     - name: Get golangci-lint
-      run: wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.38.0
+      run: wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.54.2
     - name: Run linter
       run: ./bin/golangci-lint run --out-format=line-number --timeout=15m
