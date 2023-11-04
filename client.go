@@ -15,9 +15,9 @@ var (
 )
 
 type Client struct {
-	ClientError     error
-	session         http.Client
-	clientTransport transport
+	ClientError error
+	session     http.Client
+	Transport   *transport
 }
 
 // NewClient constructs a new client given a URL to a Postgrest instance.
@@ -31,11 +31,12 @@ func NewClient(rawURL, schema string, headers map[string]string) *Client {
 	t := transport{
 		header:  http.Header{},
 		baseURL: *baseURL,
+		Parent:  http.DefaultTransport,
 	}
 
 	c := Client{
-		session:         http.Client{Transport: t},
-		clientTransport: t,
+		session:   http.Client{Transport: &t},
+		Transport: &t,
 	}
 
 	if schema == "" {
@@ -43,22 +44,22 @@ func NewClient(rawURL, schema string, headers map[string]string) *Client {
 	}
 
 	// Set required headers
-	c.clientTransport.header.Set("Accept", "application/json")
-	c.clientTransport.header.Set("Content-Type", "application/json")
-	c.clientTransport.header.Set("Accept-Profile", schema)
-	c.clientTransport.header.Set("Content-Profile", schema)
-	c.clientTransport.header.Set("X-Client-Info", "postgrest-go/"+version)
+	c.Transport.header.Set("Accept", "application/json")
+	c.Transport.header.Set("Content-Type", "application/json")
+	c.Transport.header.Set("Accept-Profile", schema)
+	c.Transport.header.Set("Content-Profile", schema)
+	c.Transport.header.Set("X-Client-Info", "postgrest-go/"+version)
 
 	// Set optional headers if they exist
 	for key, value := range headers {
-		c.clientTransport.header.Set(key, value)
+		c.Transport.header.Set(key, value)
 	}
 
 	return &c
 }
 
 func (c *Client) Ping() bool {
-	req, err := http.NewRequest("GET", path.Join(c.clientTransport.baseURL.Path, ""), nil)
+	req, err := http.NewRequest("GET", path.Join(c.Transport.baseURL.Path, ""), nil)
 	if err != nil {
 		c.ClientError = err
 
@@ -83,15 +84,15 @@ func (c *Client) Ping() bool {
 
 // TokenAuth sets authorization headers for subsequent requests.
 func (c *Client) TokenAuth(token string) *Client {
-	c.clientTransport.header.Set("Authorization", "Bearer "+token)
-	c.clientTransport.header.Set("apikey", token)
+	c.Transport.header.Set("Authorization", "Bearer "+token)
+	c.Transport.header.Set("apikey", token)
 	return c
 }
 
 // ChangeSchema modifies the schema for subsequent requests.
 func (c *Client) ChangeSchema(schema string) *Client {
-	c.clientTransport.header.Set("Accept-Profile", schema)
-	c.clientTransport.header.Set("Content-Profile", schema)
+	c.Transport.header.Set("Accept-Profile", schema)
+	c.Transport.header.Set("Content-Profile", schema)
 	return c
 }
 
@@ -115,7 +116,7 @@ func (c *Client) Rpc(name string, count string, rpcBody interface{}) string {
 	}
 
 	readerBody := bytes.NewBuffer(byteBody)
-	url := path.Join(c.clientTransport.baseURL.Path, "rpc", name)
+	url := path.Join(c.Transport.baseURL.Path, "rpc", name)
 	req, err := http.NewRequest("POST", url, readerBody)
 	if err != nil {
 		c.ClientError = err
@@ -152,6 +153,7 @@ func (c *Client) Rpc(name string, count string, rpcBody interface{}) string {
 type transport struct {
 	header  http.Header
 	baseURL url.URL
+	Parent  http.RoundTripper
 }
 
 func (t transport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -162,5 +164,5 @@ func (t transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	req.URL = t.baseURL.ResolveReference(req.URL)
-	return http.DefaultTransport.RoundTrip(req)
+	return t.Parent.RoundTrip(req)
 }
