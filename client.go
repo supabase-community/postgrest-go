@@ -31,7 +31,7 @@ func NewClient(rawURL, schema string, headers map[string]string) *Client {
 	t := transport{
 		header:  http.Header{},
 		baseURL: *baseURL,
-		Parent:  http.DefaultTransport,
+		Parent:  nil,
 	}
 
 	c := Client{
@@ -164,5 +164,11 @@ func (t transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	req.URL = t.baseURL.ResolveReference(req.URL)
-	return t.Parent.RoundTrip(req)
+
+	// This is only needed with usage of httpmock in testing. It would be better to initialize
+	// t.Parent with http.DefaultTransport and then use t.Parent.RoundTrip(req)
+	if t.Parent != nil {
+		return t.Parent.RoundTrip(req)
+	}
+	return http.DefaultTransport.RoundTrip(req)
 }
