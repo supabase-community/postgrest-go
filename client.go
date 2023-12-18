@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	version = "v0.0.6"
+	version = "v0.1.0"
 )
 
 type Client struct {
@@ -81,10 +81,16 @@ func (c *Client) Ping() bool {
 	return true
 }
 
-// TokenAuth sets authorization headers for subsequent requests.
-func (c *Client) TokenAuth(token string) *Client {
-	c.clientTransport.header.Set("Authorization", "Bearer "+token)
-	c.clientTransport.header.Set("apikey", token)
+// SetApiKey sets api key header for subsequent requests.
+func (c *Client) SetApiKey(apiKey string) *Client {
+	c.clientTransport.header.Set("apikey", apiKey)
+	return c
+}
+
+
+// SetAuthToken sets authorization header for subsequent requests.
+func (c *Client) SetAuthToken(authToken string) *Client {
+	c.clientTransport.header.Set("Authorization", "Bearer "+authToken)
 	return c
 }
 
