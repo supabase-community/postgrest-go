@@ -86,6 +86,8 @@ func (c *Client) Ping() bool {
 func (c *Client) TokenAuth(token string) *Client {
 	c.Transport.header.Set("Authorization", "Bearer "+token)
 	c.Transport.header.Set("apikey", token)
+
+	return c
 }
 
 // ChangeSchema modifies the schema for subsequent requests.
