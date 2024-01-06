@@ -196,7 +196,13 @@ func (f *FilterBuilder) RangeAdjacent(column, value string) *FilterBuilder {
 }
 
 func (f *FilterBuilder) Overlaps(column string, value []string) *FilterBuilder {
-	f.params[column] = "ov." + strings.Join(value, ",")
+	newValue := []string{}
+	for _, v := range value {
+		newValue = append(newValue, fmt.Sprintf("%#v", v))
+	}
+
+	valueString := fmt.Sprintf("{%s}", strings.Join(newValue, ","))
+	f.params[column] = "ov." + valueString
 	return f
 }
 
