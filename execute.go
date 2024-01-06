@@ -31,7 +31,7 @@ func executeHelper(client *Client, method string, body []byte, urlFragments []st
 	}
 
 	readerBody := bytes.NewBuffer(body)
-	baseUrl := path.Join(append([]string{client.Transport.baseURL.Path}, urlFragments...)...)
+	baseUrl := path.Join(append([]string{client.clientTransport.baseURL.Path}, urlFragments...)...)
 	req, err := http.NewRequest(method, baseUrl, readerBody)
 	if err != nil {
 		return nil, 0, fmt.Errorf("error creating request: %s", err.Error())
