@@ -58,6 +58,15 @@ func (f *FilterBuilder) Filter(column, operator, value string) *FilterBuilder {
 	return f
 }
 
+func (f *FilterBuilder) And(filters, foreignTable string) *FilterBuilder {
+	if foreignTable != "" {
+		f.params[foreignTable+".and"] = fmt.Sprintf("(%s)", filters)
+	} else {
+		f.params[foreignTable+"and"] = fmt.Sprintf("(%s)", filters)
+	}
+	return f
+}
+
 func (f *FilterBuilder) Or(filters, foreignTable string) *FilterBuilder {
 	if foreignTable != "" {
 		f.params[foreignTable+".or"] = fmt.Sprintf("(%s)", filters)
