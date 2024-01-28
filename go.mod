@@ -5,7 +5,6 @@ go 1.21.1
 require (
 	github.com/jarcoal/httpmock v1.3.1
 	github.com/stretchr/testify v1.8.4
-	github.com/supabase/postgrest-go v0.0.7
 )
 
 require (
