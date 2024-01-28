@@ -152,12 +152,26 @@ func (f *FilterBuilder) In(column string, values []string) *FilterBuilder {
 }
 
 func (f *FilterBuilder) Contains(column string, value []string) *FilterBuilder {
-	f.params[column] = "cs." + strings.Join(value, ",")
+	newValue := []string{}
+	for _, v := range value {
+		newValue = append(newValue, fmt.Sprintf("%#v", v))
+	}
+
+	valueString := fmt.Sprintf("{%s}", strings.Join(newValue, ","))
+	
+	f.params[column] = "cs." + valueString
 	return f
 }
 
 func (f *FilterBuilder) ContainedBy(column string, value []string) *FilterBuilder {
-	f.params[column] = "cd." + strings.Join(value, ",")
+	newValue := []string{}
+	for _, v := range value {
+		newValue = append(newValue, fmt.Sprintf("%#v", v))
+	}
+
+	valueString := fmt.Sprintf("{%s}", strings.Join(newValue, ","))
+	
+	f.params[column] = "cd." + valueString
 	return f
 }
 
