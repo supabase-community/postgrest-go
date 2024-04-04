@@ -82,11 +82,15 @@ func (c *Client) Ping() bool {
 	return true
 }
 
-// TokenAuth sets authorization headers for subsequent requests.
-func (c *Client) TokenAuth(token string) *Client {
-	c.Transport.header.Set("Authorization", "Bearer "+token)
-	c.Transport.header.Set("apikey", token)
+// SetApiKey sets api key header for subsequent requests.
+func (c *Client) SetApiKey(apiKey string) *Client {
+	c.Transport.header.Set("apikey", apiKey)
+	return c
+}
 
+// SetAuthToken sets authorization header for subsequent requests.
+func (c *Client) SetAuthToken(authToken string) *Client {
+	c.Transport.header.Set("Authorization", "Bearer "+authToken)
 	return c
 }
 
