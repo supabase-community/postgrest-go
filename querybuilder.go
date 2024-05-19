@@ -23,8 +23,8 @@ func (q *QueryBuilder) ExecuteString() (string, int64, error) {
 	return executeString(context.Background(), q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params)
 }
 
-// Execute runs the PostgREST query with the given context, returning the
-// result as a byte slice.
+// ExecuteStringWithContext runs the PostgREST query, returning the result as
+// a JSON string.
 func (q *QueryBuilder) ExecuteStringWithContext(ctx context.Context) (string, int64, error) {
 	return executeString(ctx, q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params)
 }
@@ -34,8 +34,8 @@ func (q *QueryBuilder) Execute() ([]byte, int64, error) {
 	return execute(context.Background(), q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params)
 }
 
-// Execute runs the PostgREST query with the given context, returning the
-// result as a byte slice.
+// ExecuteWithContext runs the PostgREST query with the given context,
+// returning the result as a byte slice.
 func (q *QueryBuilder) ExecuteWithContext(ctx context.Context) ([]byte, int64, error) {
 	return execute(ctx, q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params)
 }
@@ -47,9 +47,9 @@ func (q *QueryBuilder) ExecuteTo(to interface{}) (int64, error) {
 	return executeTo(context.Background(), q.client, q.method, q.body, to, []string{q.tableName}, q.headers, q.params)
 }
 
-// ExecuteTo runs the PostgREST query with the given context, encoding the
-// result to the supplied interface. Note that the argument for the to
-// parameter should always be a reference to a slice.
+// ExecuteToWithContext runs the PostgREST query with the given context,
+// encoding the result to the supplied interface. Note that the argument for
+// the to parameter should always be a reference to a slice.
 func (q *QueryBuilder) ExecuteToWithContext(ctx context.Context, to interface{}) (int64, error) {
 	return executeTo(ctx, q.client, q.method, q.body, to, []string{q.tableName}, q.headers, q.params)
 }

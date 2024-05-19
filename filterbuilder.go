@@ -25,8 +25,8 @@ func (f *FilterBuilder) ExecuteString() (string, int64, error) {
 	return executeString(context.Background(), f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params)
 }
 
-// Execute runs the PostgREST query with the given context, returning the
-// result as a byte slice.
+// ExecuteStringWithContext runs the PostgREST query, returning the result as
+// a JSON string.
 func (f *FilterBuilder) ExecuteStringWithContext(ctx context.Context) (string, int64, error) {
 	return executeString(ctx, f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params)
 }
@@ -36,8 +36,8 @@ func (f *FilterBuilder) Execute() ([]byte, int64, error) {
 	return execute(context.Background(), f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params)
 }
 
-// Execute runs the PostgREST query with the given context, returning the
-// result as a byte slice.
+// ExecuteWithContext runs the PostgREST query with the given context,
+// returning the result as a byte slice.
 func (f *FilterBuilder) ExecuteWithContext(ctx context.Context) ([]byte, int64, error) {
 	return execute(ctx, f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params)
 }
@@ -49,9 +49,9 @@ func (f *FilterBuilder) ExecuteTo(to interface{}) (countType, error) {
 	return executeTo(context.Background(), f.client, f.method, f.body, to, []string{f.tableName}, f.headers, f.params)
 }
 
-// ExecuteTo runs the PostgREST query with the given context, encoding the
-// result to the supplied interface. Note that the argument for the to
-// parameter should always be a reference to a slice.
+// ExecuteToWithContext runs the PostgREST query with the given context,
+// encoding the result to the supplied interface. Note that the argument for
+// the to parameter should always be a reference to a slice.
 func (f *FilterBuilder) ExecuteToWithContext(ctx context.Context, to interface{}) (countType, error) {
 	return executeTo(ctx, f.client, f.method, f.body, to, []string{f.tableName}, f.headers, f.params)
 }
