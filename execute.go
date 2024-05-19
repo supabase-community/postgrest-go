@@ -2,6 +2,7 @@ package postgrest
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,14 +26,14 @@ type ExecuteError struct {
 	Message string `json:"message"`
 }
 
-func executeHelper(client *Client, method string, body []byte, urlFragments []string, headers map[string]string, params map[string]string) ([]byte, countType, error) {
+func executeHelper(ctx context.Context, client *Client, method string, body []byte, urlFragments []string, headers map[string]string, params map[string]string) ([]byte, countType, error) {
 	if client.ClientError != nil {
 		return nil, 0, client.ClientError
 	}
 
 	readerBody := bytes.NewBuffer(body)
 	baseUrl := path.Join(append([]string{client.Transport.baseURL.Path}, urlFragments...)...)
-	req, err := http.NewRequest(method, baseUrl, readerBody)
+	req, err := http.NewRequestWithContext(ctx, method, baseUrl, readerBody)
 	if err != nil {
 		return nil, 0, fmt.Errorf("error creating request: %s", err.Error())
 	}
@@ -86,17 +87,17 @@ func executeHelper(client *Client, method string, body []byte, urlFragments []st
 	return respBody, count, nil
 }
 
-func executeString(client *Client, method string, body []byte, urlFragments []string, headers map[string]string, params map[string]string) (string, countType, error) {
-	resp, count, err := executeHelper(client, method, body, urlFragments, headers, params)
+func executeString(ctx context.Context, client *Client, method string, body []byte, urlFragments []string, headers map[string]string, params map[string]string) (string, countType, error) {
+	resp, count, err := executeHelper(ctx, client, method, body, urlFragments, headers, params)
 	return string(resp), count, err
 }
 
-func execute(client *Client, method string, body []byte, urlFragments []string, headers map[string]string, params map[string]string) ([]byte, countType, error) {
-	return executeHelper(client, method, body, urlFragments, headers, params)
+func execute(ctx context.Context, client *Client, method string, body []byte, urlFragments []string, headers map[string]string, params map[string]string) ([]byte, countType, error) {
+	return executeHelper(ctx, client, method, body, urlFragments, headers, params)
 }
 
-func executeTo(client *Client, method string, body []byte, to interface{}, urlFragments []string, headers map[string]string, params map[string]string) (countType, error) {
-	resp, count, err := executeHelper(client, method, body, urlFragments, headers, params)
+func executeTo(ctx context.Context, client *Client, method string, body []byte, to interface{}, urlFragments []string, headers map[string]string, params map[string]string) (countType, error) {
+	resp, count, err := executeHelper(ctx, client, method, body, urlFragments, headers, params)
 
 	if err != nil {
 		return count, err

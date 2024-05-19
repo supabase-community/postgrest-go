@@ -1,6 +1,7 @@
 package postgrest
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -21,19 +22,38 @@ type FilterBuilder struct {
 // ExecuteString runs the PostgREST query, returning the result as a JSON
 // string.
 func (f *FilterBuilder) ExecuteString() (string, int64, error) {
-	return executeString(f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params)
+	return executeString(context.Background(), f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params)
+}
+
+// Execute runs the PostgREST query with the given context, returning the
+// result as a byte slice.
+func (f *FilterBuilder) ExecuteStringWithContext(ctx context.Context) (string, int64, error) {
+	return executeString(ctx, f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params)
 }
 
 // Execute runs the PostgREST query, returning the result as a byte slice.
 func (f *FilterBuilder) Execute() ([]byte, int64, error) {
-	return execute(f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params)
+	return execute(context.Background(), f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params)
+}
+
+// Execute runs the PostgREST query with the given context, returning the
+// result as a byte slice.
+func (f *FilterBuilder) ExecuteWithContext(ctx context.Context) ([]byte, int64, error) {
+	return execute(ctx, f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params)
 }
 
 // ExecuteTo runs the PostgREST query, encoding the result to the supplied
 // interface. Note that the argument for the to parameter should always be a
 // reference to a slice.
 func (f *FilterBuilder) ExecuteTo(to interface{}) (countType, error) {
-	return executeTo(f.client, f.method, f.body, to, []string{f.tableName}, f.headers, f.params)
+	return executeTo(context.Background(), f.client, f.method, f.body, to, []string{f.tableName}, f.headers, f.params)
+}
+
+// ExecuteTo runs the PostgREST query with the given context, encoding the
+// result to the supplied interface. Note that the argument for the to
+// parameter should always be a reference to a slice.
+func (f *FilterBuilder) ExecuteToWithContext(ctx context.Context, to interface{}) (countType, error) {
+	return executeTo(ctx, f.client, f.method, f.body, to, []string{f.tableName}, f.headers, f.params)
 }
 
 var filterOperators = []string{"eq", "neq", "gt", "gte", "lt", "lte", "like", "ilike", "is", "in", "cs", "cd", "sl", "sr", "nxl", "nxr", "adj", "ov", "fts", "plfts", "phfts", "wfts"}
@@ -158,7 +178,7 @@ func (f *FilterBuilder) Contains(column string, value []string) *FilterBuilder {
 	}
 
 	valueString := fmt.Sprintf("{%s}", strings.Join(newValue, ","))
-	
+
 	f.params[column] = "cs." + valueString
 	return f
 }
@@ -170,7 +190,7 @@ func (f *FilterBuilder) ContainedBy(column string, value []string) *FilterBuilde
 	}
 
 	valueString := fmt.Sprintf("{%s}", strings.Join(newValue, ","))
-	
+
 	f.params[column] = "cd." + valueString
 	return f
 }
