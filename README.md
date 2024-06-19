@@ -42,12 +42,6 @@ func main() {
 }
 ```
 
-- select(): https://supabase.com/docs/reference/javascript/select
-- insert(): https://supabase.com/docs/reference/javascript/insert
-- update(): https://supabase.com/docs/reference/javascript/update
-- upsert(): https://supabase.com/docs/reference/javascript/upsert
-- delete(): https://supabase.com/docs/reference/javascript/delete
-
 ## Testing
 
 Some tests are implemented to run against mocked Postgrest endpoints. Optionally, tests can be run against an actual Postgrest instance by setting a `POSTGREST_URL` environment variable to the fully-qualified URL to a Postgrest instance, and, optionally, an `API_KEY` environment variable (if, for example, testing against a local Supabase instance).
@@ -59,6 +53,12 @@ To run all tests:
 ```bash
 go test ./...
 ```
+## Package made possible through the efforts of: 
+<a href="https://github.com/supabase-community/postgrest-go/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=supabase-community/postgrest-go" />
+</a>
+
+Made with [contrib.rocks](https://contrib.rocks).
 
 ## License
 
