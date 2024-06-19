@@ -1,0 +1,24 @@
+name: Coverage Badge
+on:
+  push:
+    branches:
+      - main
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.22
+      - name: Download dependencies
+        run: go mod download
+      - name: Test
+        run: go test -v ./...
+      - name: Update Coverage Report
+        uses: ncruces/go-coverage-report@57ac6f0f19874f7afbab596105154f08004f482e
+        with:
+          report: 'true'
+          chart: 'true'
