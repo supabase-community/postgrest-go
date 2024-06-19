@@ -1,6 +1,7 @@
 # Postgrest GO
 
 [![golangci-lint](https://github.com/supabase-community/postgrest-go/actions/workflows/golangci.yml/badge.svg)](https://github.com/supabase-community/postgrest-go/actions/workflows/golangci.yml) [![CodeFactor](https://www.codefactor.io/repository/github/supabase-community/postgrest-go/badge/main?s=101cab44de33934fd85cadcd9a9b535a05791670)](https://www.codefactor.io/repository/github/supabase-community/postgrest-go/overview/main)
+[![Go Coverage](https://github.com/supabase-community/postgrest-go/wiki/coverage.svg)](https://raw.githack.com/wiki/supabase-community/postgrest-go/coverage.html)
 
 Golang client for [PostgREST](https://postgrest.org). The goal of this library is to make an "ORM-like" restful interface.
 
