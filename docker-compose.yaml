@@ -1,25 +1,24 @@
 version: "3"
 services:
-  server:
-    image: postgrest/postgrest
+  rest:
+    image: postgrest/postgrest:latest
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       PGRST_DB_URI: postgres://postgres:postgres@db:5432/postgres
-      PGRST_DB_SCHEMA: public
-      PGRST_DB_ANON_ROLE: postgres # In production this role should not be the same as the one used for connection
-      PGRST_OPENAPI_SERVER_PROXY_URI: "http://127.0.0.1:3000"
+      PGRST_DB_SCHEMA: public, personal
+      PGRST_DB_ANON_ROLE: postgres
+      PGRST_JWT_SECRET: "reallyreallyreallyreallyverysafe"
     depends_on:
       - db
   db:
-    image: postgres
+    image: postgres:14
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - ./test:/docker-entrypoint-initdb.d/
     environment:
       POSTGRES_DB: postgres
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      # Uncomment this if you want to persist the data. Create your boostrap SQL file in the project root
-    volumes:
-      - "./pgdata:/var/lib/postgresql/data"
-#      - "./init.sql:/docker-entrypoint-initdb.d/init.sql"
+      POSTGRES_PORT: 5432
