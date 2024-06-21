@@ -1,0 +1,6 @@
+[book]
+authors = ["Murat Mirgün Ercan"]
+language = "en"
+multilingual = false
+src = "src"
+title = "Postgrest Go Docs"
