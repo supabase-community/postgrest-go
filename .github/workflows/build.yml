@@ -32,7 +32,7 @@ jobs:
           tar -xzf mdbook-theme_linux.tar.gz -C ~/tools
           echo ~/tools >> $GITHUB_PATH
       - name: Build
-        run: mdbook build
+        run: mdbook build docs
       # share between different jobs
       - uses: actions/upload-artifact@v3
         with:
