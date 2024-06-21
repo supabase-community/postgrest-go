@@ -1,6 +1,7 @@
 package postgrest
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -16,22 +17,41 @@ type QueryBuilder struct {
 	params    map[string]string
 }
 
-// ExecuteString runs the Postgrest query, returning the result as a JSON
+// ExecuteString runs the PostgREST query, returning the result as a JSON
 // string.
 func (q *QueryBuilder) ExecuteString() (string, int64, error) {
-	return executeString(q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params)
+	return executeString(context.Background(), q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params)
+}
+
+// ExecuteStringWithContext runs the PostgREST query, returning the result as
+// a JSON string.
+func (q *QueryBuilder) ExecuteStringWithContext(ctx context.Context) (string, int64, error) {
+	return executeString(ctx, q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params)
 }
 
 // Execute runs the Postgrest query, returning the result as a byte slice.
 func (q *QueryBuilder) Execute() ([]byte, int64, error) {
-	return execute(q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params)
+	return execute(context.Background(), q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params)
 }
 
-// ExecuteTo runs the Postgrest query, encoding the result to the supplied
+// ExecuteWithContext runs the PostgREST query with the given context,
+// returning the result as a byte slice.
+func (q *QueryBuilder) ExecuteWithContext(ctx context.Context) ([]byte, int64, error) {
+	return execute(ctx, q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params)
+}
+
+// ExecuteTo runs the PostgREST query, encoding the result to the supplied
 // interface. Note that the argument for the to parameter should always be a
 // reference to a slice.
 func (q *QueryBuilder) ExecuteTo(to interface{}) (int64, error) {
-	return executeTo(q.client, q.method, q.body, to, []string{q.tableName}, q.headers, q.params)
+	return executeTo(context.Background(), q.client, q.method, q.body, to, []string{q.tableName}, q.headers, q.params)
+}
+
+// ExecuteToWithContext runs the PostgREST query with the given context,
+// encoding the result to the supplied interface. Note that the argument for
+// the to parameter should always be a reference to a slice.
+func (q *QueryBuilder) ExecuteToWithContext(ctx context.Context, to interface{}) (int64, error) {
+	return executeTo(ctx, q.client, q.method, q.body, to, []string{q.tableName}, q.headers, q.params)
 }
 
 // Select performs vertical filtering.

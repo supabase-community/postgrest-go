@@ -1,10 +1,12 @@
 package postgrest
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
@@ -118,6 +120,25 @@ func TestFilterBuilder_Limit(t *testing.T) {
 	// Matching supabase-js, the count returned is not the number of transformed
 	// rows, but the number of filtered rows.
 	assert.Equal(countType(len(users)), count, "expected count to be %v", len(users))
+}
+
+func TestFilterBuilder_ContextCanceled(t *testing.T) {
+	c := createClient(t)
+	assert := assert.New(t)
+
+	if mockResponses {
+		httpmock.Activate()
+		defer httpmock.DeactivateAndReset()
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+	defer cancel()
+
+	time.Sleep(1 * time.Nanosecond)
+
+	_, _, err := c.From("users").Select("id, name, email", "exact", false).Limit(1, "").ExecuteWithContext(ctx)
+	// This test should immediately fail on a canceled context.
+	assert.Error(err)
 }
 
 func TestFilterBuilder_Order(t *testing.T) {
