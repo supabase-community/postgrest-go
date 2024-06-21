@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"net/url"
@@ -18,10 +19,11 @@ type Client struct {
 	ClientError error
 	session     http.Client
 	Transport   *transport
+	l           *zap.Logger
 }
 
 // NewClient constructs a new client given a URL to a Postgrest instance.
-func NewClient(rawURL, schema string, headers map[string]string) *Client {
+func NewClient(rawURL, schema string, headers map[string]string, env string) *Client {
 	// Create URL from rawURL
 	baseURL, err := url.Parse(rawURL)
 	if err != nil {
@@ -34,9 +36,26 @@ func NewClient(rawURL, schema string, headers map[string]string) *Client {
 		Parent:  nil,
 	}
 
+	var logger *zap.Logger
+	if env != "prod" {
+		logger, err = zap.NewDevelopment(
+			zap.AddStacktrace(zap.ErrorLevel),
+		)
+
+		if err != nil {
+			return nil
+		}
+	} else {
+		logger, err = zap.NewProduction(zap.AddStacktrace(zap.ErrorLevel), zap.AddCallerSkip(1))
+		if err != nil {
+			return nil
+		}
+	}
+
 	c := Client{
 		session:   http.Client{Transport: &t},
 		Transport: &t,
+		l:         logger,
 	}
 
 	if schema == "" {
@@ -62,20 +81,20 @@ func (c *Client) Ping() bool {
 	req, err := http.NewRequest("GET", path.Join(c.Transport.baseURL.Path, ""), nil)
 	if err != nil {
 		c.ClientError = err
-
+		c.l.Error("client error:", zap.Error(err))
 		return false
 	}
 
 	resp, err := c.session.Do(req)
 	if err != nil {
 		c.ClientError = err
-
+		c.l.Error("client error:", zap.Error(err))
 		return false
 	}
 
 	if resp.Status != "200 OK" {
 		c.ClientError = errors.New("ping failed")
-
+		c.l.Debug("ping failed", zap.String("status", resp.Status))
 		return false
 	}
 

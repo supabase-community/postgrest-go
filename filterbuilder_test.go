@@ -82,7 +82,7 @@ func ExampleFilterBuilder_ExecuteTo() {
 		Email string `json:"email"`
 	}
 
-	client := NewClient("http://localhost:3000", "", nil)
+	client := NewClient("http://localhost:3000", "", nil, "dev")
 	count, err := client.From("users").Select("*", "exact", false).ExecuteTo(&res)
 	if err == nil && count > 0 {
 		// The value for res will contain all columns for all users, and count will
