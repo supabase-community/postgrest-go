@@ -36,8 +36,8 @@ jobs:
         id: download-artifact
         uses: dawidd6/action-download-artifact@v2
         with:
-          name: book
-          path: book/
+          name: docs
+          path: docs/
           workflow: build.yml
       - name: Setup Pages
         uses: actions/configure-pages@v2
