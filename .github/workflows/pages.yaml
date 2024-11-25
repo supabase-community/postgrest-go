@@ -34,7 +34,7 @@ jobs:
       # actions/download-artifact@v3 does not allow sharing across workflows
       - name: Download artifact
         id: download-artifact
-        uses: dawidd6/action-download-artifact@v2
+        uses: dawidd6/action-download-artifact@v6
         with:
           name: docs
           path: docs/
