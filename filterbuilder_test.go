@@ -263,3 +263,120 @@ func TestFilterBuilder_Single(t *testing.T) {
 		assert.Error(err)
 	})
 }
+
+func TestFilterAppend(t *testing.T) {
+	tests := []struct {
+		name     string
+		build    func(*FilterBuilder) *FilterBuilder
+		expected map[string]string
+	}{
+		{
+			name: "Single filter on column",
+			build: func(fb *FilterBuilder) *FilterBuilder {
+				return fb.Eq("age", "25")
+			},
+			expected: map[string]string{
+				"age": "eq.25",
+			},
+		},
+		{
+			name: "Multiple filters on same column",
+			build: func(fb *FilterBuilder) *FilterBuilder {
+				return fb.Gte("age", "25").Lte("age", "35")
+			},
+			expected: map[string]string{
+				"and": "(age.gte.25,age.lte.35)",
+			},
+		},
+		{
+			name: "Three filters on same column",
+			build: func(fb *FilterBuilder) *FilterBuilder {
+				return fb.Gte("age", "25").Lte("age", "35").Neq("age", "30")
+			},
+			expected: map[string]string{
+				"and": "(age.gte.25,age.lte.35,age.neq.30)",
+			},
+		},
+		{
+			name: "Multiple columns with multiple filters",
+			build: func(fb *FilterBuilder) *FilterBuilder {
+				return fb.Eq("status", "active").Gte("age", "25").Lte("age", "35")
+			},
+			expected: map[string]string{
+				"status": "eq.active",
+				"and":    "(age.gte.25,age.lte.35)",
+			},
+		},
+		{
+			name: "In filter followed by another filter",
+			build: func(fb *FilterBuilder) *FilterBuilder {
+				return fb.In("id", []string{"1", "2", "3"}).Eq("id", "4")
+			},
+			expected: map[string]string{
+				"and": "(id.in.(1,2,3),id.eq.4)",
+			},
+		},
+		{
+			name: "Contains filter followed by another filter",
+			build: func(fb *FilterBuilder) *FilterBuilder {
+				return fb.Contains("tags", []string{"golang", "postgres"}).Overlaps("tags", []string{"javascript"})
+			},
+			expected: map[string]string{
+				"and": "(tags.cs.{\"golang\",\"postgres\"},tags.ov.{\"javascript\"})",
+			},
+		},
+		{
+			name: "Text search followed by Like filter",
+			build: func(fb *FilterBuilder) *FilterBuilder {
+				return fb.TextSearch("title", "golang", "", "plain").Like("title", "%tutorial%")
+			},
+			expected: map[string]string{
+				"and": "(title.plfts.golang,title.like.%tutorial%)",
+			},
+		},
+		{
+			name: "Range filters on same column",
+			build: func(fb *FilterBuilder) *FilterBuilder {
+				return fb.RangeGt("period", "[2022-01-01,2022-12-31]").RangeLt("period", "[2023-01-01,2023-12-31]")
+			},
+			expected: map[string]string{
+				"and": "(period.sr.[2022-01-01,2022-12-31],period.sl.[2023-01-01,2023-12-31])",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := NewClient("http://localhost:3000", "", nil)
+			fb := &FilterBuilder{
+				client:    client,
+				method:    "GET",
+				tableName: "test",
+				headers:   make(map[string]string),
+				params:    make(map[string]string),
+			}
+
+			result := tt.build(fb)
+
+			// Check that we got the expected params
+			if len(result.params) != len(tt.expected) {
+				t.Errorf("Expected %d params, got %d", len(tt.expected), len(result.params))
+			}
+
+			for key, expectedValue := range tt.expected {
+				if actualValue, ok := result.params[key]; !ok {
+					t.Errorf("Expected param %s not found", key)
+				} else if actualValue != expectedValue {
+					t.Errorf("Param %s: expected %s, got %s", key, expectedValue, actualValue)
+				}
+			}
+
+			// Check that no unexpected params exist
+			for key := range result.params {
+				if _, ok := tt.expected[key]; !ok {
+					t.Errorf("Unexpected param %s found", key)
+				}
+			}
+		})
+	}
+}
