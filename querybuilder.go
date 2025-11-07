@@ -3,6 +3,7 @@ package postgrest
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -15,43 +16,44 @@ type QueryBuilder struct {
 	tableName string
 	headers   map[string]string
 	params    map[string]string
+	err       error
 }
 
 // ExecuteString runs the PostgREST query, returning the result as a JSON
 // string.
 func (q *QueryBuilder) ExecuteString() (string, int64, error) {
-	return executeString(context.Background(), q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params)
+	return executeString(context.Background(), q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params, q.err)
 }
 
 // ExecuteStringWithContext runs the PostgREST query, returning the result as
 // a JSON string.
 func (q *QueryBuilder) ExecuteStringWithContext(ctx context.Context) (string, int64, error) {
-	return executeString(ctx, q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params)
+	return executeString(ctx, q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params, q.err)
 }
 
 // Execute runs the Postgrest query, returning the result as a byte slice.
 func (q *QueryBuilder) Execute() ([]byte, int64, error) {
-	return execute(context.Background(), q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params)
+	return execute(context.Background(), q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params, q.err)
 }
 
 // ExecuteWithContext runs the PostgREST query with the given context,
 // returning the result as a byte slice.
 func (q *QueryBuilder) ExecuteWithContext(ctx context.Context) ([]byte, int64, error) {
-	return execute(ctx, q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params)
+	return execute(ctx, q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params, q.err)
 }
 
 // ExecuteTo runs the PostgREST query, encoding the result to the supplied
 // interface. Note that the argument for the to parameter should always be a
 // reference to a slice.
 func (q *QueryBuilder) ExecuteTo(to interface{}) (int64, error) {
-	return executeTo(context.Background(), q.client, q.method, q.body, to, []string{q.tableName}, q.headers, q.params)
+	return executeTo(context.Background(), q.client, q.method, q.body, to, []string{q.tableName}, q.headers, q.params, q.err)
 }
 
 // ExecuteToWithContext runs the PostgREST query with the given context,
 // encoding the result to the supplied interface. Note that the argument for
 // the to parameter should always be a reference to a slice.
 func (q *QueryBuilder) ExecuteToWithContext(ctx context.Context, to interface{}) (int64, error) {
-	return executeTo(ctx, q.client, q.method, q.body, to, []string{q.tableName}, q.headers, q.params)
+	return executeTo(ctx, q.client, q.method, q.body, to, []string{q.tableName}, q.headers, q.params, q.err)
 }
 
 // Select performs vertical filtering.
@@ -88,7 +90,7 @@ func (q *QueryBuilder) Select(columns, count string, head bool) *FilterBuilder {
 			q.headers["Prefer"] = fmt.Sprintf("count=%s", count)
 		}
 	}
-	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params}
+	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params, err: q.err}
 }
 
 // Insert performs an insertion into the table.
@@ -120,12 +122,12 @@ func (q *QueryBuilder) Insert(value interface{}, upsert bool, onConflict, return
 		jsonBody, err := json.Marshal(value)
 		if err != nil {
 			q.client.ClientError = err
-			return &FilterBuilder{}
+			return &FilterBuilder{err: errors.Join(q.err, err)}
 		}
 		byteBody = jsonBody
 	}
 	q.body = byteBody
-	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params}
+	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params, err: q.err}
 }
 
 // Upsert performs an upsert into the table.
@@ -154,12 +156,12 @@ func (q *QueryBuilder) Upsert(value interface{}, onConflict, returning, count st
 		jsonBody, err := json.Marshal(value)
 		if err != nil {
 			q.client.ClientError = err
-			return &FilterBuilder{}
+			return &FilterBuilder{err: errors.Join(q.err, err)}
 		}
 		byteBody = jsonBody
 	}
 	q.body = byteBody
-	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params}
+	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params, err: q.err}
 }
 
 // Delete performs a deletion from the table.
@@ -177,7 +179,7 @@ func (q *QueryBuilder) Delete(returning, count string) *FilterBuilder {
 		headerList = append(headerList, "count="+count)
 	}
 	q.headers["Prefer"] = strings.Join(headerList, ",")
-	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params}
+	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params, err: q.err}
 }
 
 // Update performs an update on the table.
@@ -202,10 +204,10 @@ func (q *QueryBuilder) Update(value interface{}, returning, count string) *Filte
 		jsonBody, err := json.Marshal(value)
 		if err != nil {
 			q.client.ClientError = err
-			return &FilterBuilder{}
+			return &FilterBuilder{err: errors.Join(q.err, err)}
 		}
 		byteBody = jsonBody
 	}
 	q.body = byteBody
-	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params}
+	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params, err: q.err}
 }
