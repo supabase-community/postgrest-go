@@ -44,14 +44,14 @@ func (q *QueryBuilder) ExecuteWithContext(ctx context.Context) ([]byte, int64, e
 
 // ExecuteTo runs the PostgREST query, encoding the result to the supplied
 // interface. Note that the argument for the to parameter should always be a
-// reference to a slice.
+// reference to a slice unless the filter method Single is specified.
 func (q *QueryBuilder) ExecuteTo(to interface{}) (int64, error) {
 	return executeTo(context.Background(), q.client, q.method, q.body, to, []string{q.tableName}, q.headers, q.params, q.err)
 }
 
 // ExecuteToWithContext runs the PostgREST query with the given context,
 // encoding the result to the supplied interface. Note that the argument for
-// the to parameter should always be a reference to a slice.
+// the to parameter should always be a reference to a slice unless the filter method Single is specified.
 func (q *QueryBuilder) ExecuteToWithContext(ctx context.Context, to interface{}) (int64, error) {
 	return executeTo(ctx, q.client, q.method, q.body, to, []string{q.tableName}, q.headers, q.params, q.err)
 }
