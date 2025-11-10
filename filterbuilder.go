@@ -3,8 +3,10 @@ package postgrest
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -17,43 +19,44 @@ type FilterBuilder struct {
 	tableName string
 	headers   map[string]string
 	params    map[string]string
+	err       error
 }
 
 // ExecuteString runs the PostgREST query, returning the result as a JSON
 // string.
 func (f *FilterBuilder) ExecuteString() (string, int64, error) {
-	return executeString(context.Background(), f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params)
+	return executeString(context.Background(), f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params, f.err)
 }
 
 // ExecuteStringWithContext runs the PostgREST query, returning the result as
 // a JSON string.
 func (f *FilterBuilder) ExecuteStringWithContext(ctx context.Context) (string, int64, error) {
-	return executeString(ctx, f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params)
+	return executeString(ctx, f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params, f.err)
 }
 
 // Execute runs the PostgREST query, returning the result as a byte slice.
 func (f *FilterBuilder) Execute() ([]byte, int64, error) {
-	return execute(context.Background(), f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params)
+	return execute(context.Background(), f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params, f.err)
 }
 
 // ExecuteWithContext runs the PostgREST query with the given context,
 // returning the result as a byte slice.
 func (f *FilterBuilder) ExecuteWithContext(ctx context.Context) ([]byte, int64, error) {
-	return execute(ctx, f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params)
+	return execute(ctx, f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params, f.err)
 }
 
 // ExecuteTo runs the PostgREST query, encoding the result to the supplied
 // interface. Note that the argument for the to parameter should always be a
 // reference to a slice.
 func (f *FilterBuilder) ExecuteTo(to interface{}) (countType, error) {
-	return executeTo(context.Background(), f.client, f.method, f.body, to, []string{f.tableName}, f.headers, f.params)
+	return executeTo(context.Background(), f.client, f.method, f.body, to, []string{f.tableName}, f.headers, f.params, f.err)
 }
 
 // ExecuteToWithContext runs the PostgREST query with the given context,
 // encoding the result to the supplied interface. Note that the argument for
 // the to parameter should always be a reference to a slice.
 func (f *FilterBuilder) ExecuteToWithContext(ctx context.Context, to interface{}) (countType, error) {
-	return executeTo(ctx, f.client, f.method, f.body, to, []string{f.tableName}, f.headers, f.params)
+	return executeTo(ctx, f.client, f.method, f.body, to, []string{f.tableName}, f.headers, f.params, f.err)
 }
 
 var filterOperators = []string{"eq", "neq", "gt", "gte", "lt", "lte", "like", "ilike", "is", "in", "cs", "cd", "sl", "sr", "nxl", "nxr", "adj", "ov", "fts", "plfts", "phfts", "wfts"}
@@ -74,19 +77,16 @@ func (f *FilterBuilder) appendFilter(column, filterValue string) *FilterBuilder 
 }
 
 func isOperator(value string) bool {
-	for _, operator := range filterOperators {
-		if value == operator {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(filterOperators, value)
 }
 
 // Filter adds a filtering operator to the query. For a list of available
 // operators, see: https://postgrest.org/en/stable/api.html#operators
 func (f *FilterBuilder) Filter(column, operator, value string) *FilterBuilder {
 	if !isOperator(operator) {
-		f.client.ClientError = fmt.Errorf("invalid filter operator")
+		err := fmt.Errorf("invalid Filter operator: %s", operator)
+		f.client.ClientError = err
+		f.err = errors.Join(f.err, err)
 		return f
 	}
 	return f.appendFilter(column, fmt.Sprintf("%s.%s", operator, value))
@@ -200,6 +200,7 @@ func (f *FilterBuilder) ContainsObject(column string, value interface{}) *Filter
 	sum, err := json.Marshal(value)
 	if err != nil {
 		f.client.ClientError = err
+		f.err = errors.Join(f.err, fmt.Errorf("error marshaling value for ContainsObject: %w", err))
 		return f
 	}
 	return f.appendFilter(column, "cs."+string(sum))
@@ -208,7 +209,9 @@ func (f *FilterBuilder) ContainsObject(column string, value interface{}) *Filter
 func (f *FilterBuilder) ContainedByObject(column string, value interface{}) *FilterBuilder {
 	sum, err := json.Marshal(value)
 	if err != nil {
+		err := fmt.Errorf("error marshaling value for ContainedByObject: %w", err)
 		f.client.ClientError = err
+		f.err = errors.Join(f.err, err)
 		return f
 	}
 	return f.appendFilter(column, "cd."+string(sum))
@@ -257,7 +260,9 @@ func (f *FilterBuilder) TextSearch(column, userQuery, config, tsType string) *Fi
 	} else if tsType == "" {
 		typePart = ""
 	} else {
-		f.client.ClientError = fmt.Errorf("invalid text search type")
+		err := fmt.Errorf("invalid text search type: %s", tsType)
+		f.client.ClientError = err
+		f.err = errors.Join(f.err, err)
 		return f
 	}
 	if config != "" {
