@@ -88,8 +88,21 @@ func TestMain(m *testing.M) {
 	}
 	defer db.Close()
 
-	// Wait for database to be ready
-	time.Sleep(2 * time.Second)
+	// Wait for database to be ready using a retry loop
+	ctxPing, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	for {
+		err := db.PingContext(ctxPing)
+		if err == nil {
+			break
+		}
+		select {
+		case <-ctxPing.Done():
+			panic(fmt.Sprintf("Database not ready after 10 seconds: %v", err))
+		default:
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
 
 	// Read and execute schema SQL
 	schemaSQL, err := os.ReadFile(filepath.Join("test", "00-schema.sql"))
