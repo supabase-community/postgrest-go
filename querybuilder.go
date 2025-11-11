@@ -1,213 +1,286 @@
 package postgrest
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"net/http"
+	"net/url"
 	"strings"
 )
 
-// QueryBuilder describes a builder for a query.
-type QueryBuilder struct {
-	client    *Client
-	method    string
-	body      []byte
-	tableName string
-	headers   map[string]string
-	params    map[string]string
-	err       error
+// QueryBuilder provides query building methods
+// Similar to PostgrestQueryBuilder in postgrest-js
+type QueryBuilder[T any] struct {
+	url     *url.URL
+	headers http.Header
+	schema  string
+	client  *Client
 }
 
-// ExecuteString runs the PostgREST query, returning the result as a JSON
-// string.
-func (q *QueryBuilder) ExecuteString() (string, int64, error) {
-	return executeString(context.Background(), q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params, q.err)
-}
+// NewQueryBuilder creates a new QueryBuilder instance
+func NewQueryBuilder[T any](client *Client, relation string) *QueryBuilder[T] {
+	baseURL := client.Transport.baseURL
+	queryURL := baseURL.JoinPath(relation)
 
-// ExecuteStringWithContext runs the PostgREST query, returning the result as
-// a JSON string.
-func (q *QueryBuilder) ExecuteStringWithContext(ctx context.Context) (string, int64, error) {
-	return executeString(ctx, q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params, q.err)
-}
-
-// Execute runs the Postgrest query, returning the result as a byte slice.
-func (q *QueryBuilder) Execute() ([]byte, int64, error) {
-	return execute(context.Background(), q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params, q.err)
-}
-
-// ExecuteWithContext runs the PostgREST query with the given context,
-// returning the result as a byte slice.
-func (q *QueryBuilder) ExecuteWithContext(ctx context.Context) ([]byte, int64, error) {
-	return execute(ctx, q.client, q.method, q.body, []string{q.tableName}, q.headers, q.params, q.err)
-}
-
-// ExecuteTo runs the PostgREST query, encoding the result to the supplied
-// interface. Note that the argument for the to parameter should always be a
-// reference to a slice unless the filter method Single is specified.
-func (q *QueryBuilder) ExecuteTo(to interface{}) (int64, error) {
-	return executeTo(context.Background(), q.client, q.method, q.body, to, []string{q.tableName}, q.headers, q.params, q.err)
-}
-
-// ExecuteToWithContext runs the PostgREST query with the given context,
-// encoding the result to the supplied interface. Note that the argument for
-// the to parameter should always be a reference to a slice unless the filter method Single is specified.
-func (q *QueryBuilder) ExecuteToWithContext(ctx context.Context, to interface{}) (int64, error) {
-	return executeTo(ctx, q.client, q.method, q.body, to, []string{q.tableName}, q.headers, q.params, q.err)
-}
-
-// Select performs vertical filtering.
-func (q *QueryBuilder) Select(columns, count string, head bool) *FilterBuilder {
-	if head {
-		q.method = "HEAD"
-	} else {
-		q.method = "GET"
+	headers := make(http.Header)
+	if client.Transport != nil {
+		client.Transport.mu.RLock()
+		for key, values := range client.Transport.header {
+			for _, val := range values {
+				headers.Add(key, val)
+			}
+		}
+		client.Transport.mu.RUnlock()
 	}
 
+	return &QueryBuilder[T]{
+		url:     queryURL,
+		headers: headers,
+		schema:  client.schemaName,
+		client:  client,
+	}
+}
+
+// SelectOptions contains options for Select
+type SelectOptions struct {
+	Head  bool
+	Count string // "exact", "planned", or "estimated"
+}
+
+// Select performs a SELECT query on the table or view
+func (q *QueryBuilder[T]) Select(columns string, opts *SelectOptions) *FilterBuilder[[]T] {
+	if opts == nil {
+		opts = &SelectOptions{}
+	}
+
+	method := "GET"
+	if opts.Head {
+		method = "HEAD"
+	}
+
+	// Remove whitespaces except when quoted
+	quoted := false
+	var cleanedColumns strings.Builder
 	if columns == "" {
-		q.params["select"] = "*"
+		cleanedColumns.WriteString("*")
 	} else {
-		quoted := false
-		var resultArr []string
-		for _, char := range strings.Split(columns, "") {
-			if char == `"` {
+		for _, char := range columns {
+			if char == '"' {
 				quoted = !quoted
 			}
-			if char == " " {
-				char = ""
+			if char == ' ' && !quoted {
+				continue
 			}
-			resultArr = append(resultArr, char)
+			cleanedColumns.WriteRune(char)
 		}
-		result := strings.Join(resultArr, "")
-		q.params["select"] = result
 	}
 
-	if count != "" && (count == `exact` || count == `planned` || count == `estimated`) {
-		currentValue, ok := q.headers["Prefer"]
-		if ok && currentValue != "" {
-			q.headers["Prefer"] = fmt.Sprintf("%s,count=%s", currentValue, count)
-		} else {
-			q.headers["Prefer"] = fmt.Sprintf("count=%s", count)
-		}
+	query := q.url.Query()
+	query.Set("select", cleanedColumns.String())
+	q.url.RawQuery = query.Encode()
+
+	if opts.Count != "" && (opts.Count == "exact" || opts.Count == "planned" || opts.Count == "estimated") {
+		q.headers.Add("Prefer", fmt.Sprintf("count=%s", opts.Count))
 	}
-	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params, err: q.err}
+
+	builder := NewBuilder[[]T](q.client, method, q.url, &BuilderOptions{
+		Headers: q.headers,
+		Schema:  q.schema,
+	})
+
+	return &FilterBuilder[[]T]{Builder: builder}
 }
 
-// Insert performs an insertion into the table.
-func (q *QueryBuilder) Insert(value interface{}, upsert bool, onConflict, returning, count string) *FilterBuilder {
-	q.method = "POST"
-
-	if onConflict != "" && upsert {
-		q.params["on_conflict"] = onConflict
-	}
-
-	var headerList []string
-	if upsert {
-		headerList = append(headerList, "resolution=merge-duplicates")
-	}
-	if returning == "" {
-		returning = "representation"
-	}
-	if returning == "minimal" || returning == "representation" {
-		headerList = append(headerList, "return="+returning)
-	}
-	if count != "" && (count == `exact` || count == `planned` || count == `estimated`) {
-		headerList = append(headerList, "count="+count)
-	}
-	q.headers["Prefer"] = strings.Join(headerList, ",")
-
-	// Get body if exist
-	var byteBody []byte = nil
-	if value != nil {
-		jsonBody, err := json.Marshal(value)
-		if err != nil {
-			q.client.ClientError = err
-			return &FilterBuilder{err: errors.Join(q.err, err)}
-		}
-		byteBody = jsonBody
-	}
-	q.body = byteBody
-	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params, err: q.err}
+// InsertOptions contains options for Insert
+type InsertOptions struct {
+	Count         string // "exact", "planned", or "estimated"
+	DefaultToNull bool
 }
 
-// Upsert performs an upsert into the table.
-func (q *QueryBuilder) Upsert(value interface{}, onConflict, returning, count string) *FilterBuilder {
-	q.method = "POST"
-
-	if onConflict != "" {
-		q.params["on_conflict"] = onConflict
+// Insert performs an INSERT into the table or view
+func (q *QueryBuilder[T]) Insert(values interface{}, opts *InsertOptions) *FilterBuilder[interface{}] {
+	if opts == nil {
+		opts = &InsertOptions{DefaultToNull: true}
 	}
 
-	headerList := []string{"resolution=merge-duplicates"}
-	if returning == "" {
-		returning = "representation"
-	}
-	if returning == "minimal" || returning == "representation" {
-		headerList = append(headerList, "return="+returning)
-	}
-	if count != "" && (count == `exact` || count == `planned` || count == `estimated`) {
-		headerList = append(headerList, "count="+count)
-	}
-	q.headers["Prefer"] = strings.Join(headerList, ",")
+	method := "POST"
 
-	// Get body if exist
-	var byteBody []byte = nil
-	if value != nil {
-		jsonBody, err := json.Marshal(value)
-		if err != nil {
-			q.client.ClientError = err
-			return &FilterBuilder{err: errors.Join(q.err, err)}
+	headers := make(http.Header)
+	for key, values := range q.headers {
+		for _, val := range values {
+			headers.Add(key, val)
 		}
-		byteBody = jsonBody
 	}
-	q.body = byteBody
-	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params, err: q.err}
+
+	if opts.Count != "" && (opts.Count == "exact" || opts.Count == "planned" || opts.Count == "estimated") {
+		headers.Add("Prefer", fmt.Sprintf("count=%s", opts.Count))
+	}
+	if !opts.DefaultToNull {
+		headers.Add("Prefer", "missing=default")
+	}
+
+	// Handle array values to set columns parameter
+	valuesBytes, _ := json.Marshal(values)
+	var valuesArray []map[string]interface{}
+	if json.Unmarshal(valuesBytes, &valuesArray) == nil && len(valuesArray) > 0 {
+		columns := make(map[string]bool)
+		for _, row := range valuesArray {
+			for key := range row {
+				columns[key] = true
+			}
+		}
+		var uniqueColumns []string
+		for col := range columns {
+			uniqueColumns = append(uniqueColumns, fmt.Sprintf(`"%s"`, col))
+		}
+		if len(uniqueColumns) > 0 {
+			query := q.url.Query()
+			query.Set("columns", strings.Join(uniqueColumns, ","))
+			q.url.RawQuery = query.Encode()
+		}
+	}
+
+	builder := NewBuilder[interface{}](q.client, method, q.url, &BuilderOptions{
+		Headers: headers,
+		Schema:  q.schema,
+		Body:    values,
+	})
+
+	return &FilterBuilder[interface{}]{Builder: builder}
 }
 
-// Delete performs a deletion from the table.
-func (q *QueryBuilder) Delete(returning, count string) *FilterBuilder {
-	q.method = "DELETE"
-
-	var headerList []string
-	if returning == "" {
-		returning = "representation"
-	}
-	if returning == "minimal" || returning == "representation" {
-		headerList = append(headerList, "return="+returning)
-	}
-	if count != "" && (count == `exact` || count == `planned` || count == `estimated`) {
-		headerList = append(headerList, "count="+count)
-	}
-	q.headers["Prefer"] = strings.Join(headerList, ",")
-	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params, err: q.err}
+// UpsertOptions contains options for Upsert
+type UpsertOptions struct {
+	OnConflict       string
+	IgnoreDuplicates bool
+	Count            string // "exact", "planned", or "estimated"
+	DefaultToNull    bool
 }
 
-// Update performs an update on the table.
-func (q *QueryBuilder) Update(value interface{}, returning, count string) *FilterBuilder {
-	q.method = "PATCH"
+// Upsert performs an UPSERT on the table or view
+func (q *QueryBuilder[T]) Upsert(values interface{}, opts *UpsertOptions) *FilterBuilder[interface{}] {
+	if opts == nil {
+		opts = &UpsertOptions{IgnoreDuplicates: false, DefaultToNull: true}
+	}
 
-	var headerList []string
-	if returning == "" {
-		returning = "representation"
-	}
-	if returning == "minimal" || returning == "representation" {
-		headerList = append(headerList, "return="+returning)
-	}
-	if count != "" && (count == `exact` || count == `planned` || count == `estimated`) {
-		headerList = append(headerList, "count="+count)
-	}
-	q.headers["Prefer"] = strings.Join(headerList, ",")
+	method := "POST"
 
-	// Get body if it exists
-	var byteBody []byte = nil
-	if value != nil {
-		jsonBody, err := json.Marshal(value)
-		if err != nil {
-			q.client.ClientError = err
-			return &FilterBuilder{err: errors.Join(q.err, err)}
+	headers := make(http.Header)
+	for key, values := range q.headers {
+		for _, val := range values {
+			headers.Add(key, val)
 		}
-		byteBody = jsonBody
 	}
-	q.body = byteBody
-	return &FilterBuilder{client: q.client, method: q.method, body: q.body, tableName: q.tableName, headers: q.headers, params: q.params, err: q.err}
+
+	resolution := "merge-duplicates"
+	if opts.IgnoreDuplicates {
+		resolution = "ignore-duplicates"
+	}
+	headers.Add("Prefer", fmt.Sprintf("resolution=%s", resolution))
+
+	if opts.OnConflict != "" {
+		query := q.url.Query()
+		query.Set("on_conflict", opts.OnConflict)
+		q.url.RawQuery = query.Encode()
+	}
+	if opts.Count != "" && (opts.Count == "exact" || opts.Count == "planned" || opts.Count == "estimated") {
+		headers.Add("Prefer", fmt.Sprintf("count=%s", opts.Count))
+	}
+	if !opts.DefaultToNull {
+		headers.Add("Prefer", "missing=default")
+	}
+
+	// Handle array values to set columns parameter
+	valuesBytes, _ := json.Marshal(values)
+	var valuesArray []map[string]interface{}
+	if json.Unmarshal(valuesBytes, &valuesArray) == nil && len(valuesArray) > 0 {
+		columns := make(map[string]bool)
+		for _, row := range valuesArray {
+			for key := range row {
+				columns[key] = true
+			}
+		}
+		var uniqueColumns []string
+		for col := range columns {
+			uniqueColumns = append(uniqueColumns, fmt.Sprintf(`"%s"`, col))
+		}
+		if len(uniqueColumns) > 0 {
+			query := q.url.Query()
+			query.Set("columns", strings.Join(uniqueColumns, ","))
+			q.url.RawQuery = query.Encode()
+		}
+	}
+
+	builder := NewBuilder[interface{}](q.client, method, q.url, &BuilderOptions{
+		Headers: headers,
+		Schema:  q.schema,
+		Body:    values,
+	})
+
+	return &FilterBuilder[interface{}]{Builder: builder}
+}
+
+// UpdateOptions contains options for Update
+type UpdateOptions struct {
+	Count string // "exact", "planned", or "estimated"
+}
+
+// Update performs an UPDATE on the table or view
+func (q *QueryBuilder[T]) Update(values interface{}, opts *UpdateOptions) *FilterBuilder[interface{}] {
+	if opts == nil {
+		opts = &UpdateOptions{}
+	}
+
+	method := "PATCH"
+
+	headers := make(http.Header)
+	for key, values := range q.headers {
+		for _, val := range values {
+			headers.Add(key, val)
+		}
+	}
+
+	if opts.Count != "" && (opts.Count == "exact" || opts.Count == "planned" || opts.Count == "estimated") {
+		headers.Add("Prefer", fmt.Sprintf("count=%s", opts.Count))
+	}
+
+	builder := NewBuilder[interface{}](q.client, method, q.url, &BuilderOptions{
+		Headers: headers,
+		Schema:  q.schema,
+		Body:    values,
+	})
+
+	return &FilterBuilder[interface{}]{Builder: builder}
+}
+
+// DeleteOptions contains options for Delete
+type DeleteOptions struct {
+	Count string // "exact", "planned", or "estimated"
+}
+
+// Delete performs a DELETE on the table or view
+func (q *QueryBuilder[T]) Delete(opts *DeleteOptions) *FilterBuilder[interface{}] {
+	if opts == nil {
+		opts = &DeleteOptions{}
+	}
+
+	method := "DELETE"
+
+	headers := make(http.Header)
+	for key, values := range q.headers {
+		for _, val := range values {
+			headers.Add(key, val)
+		}
+	}
+
+	if opts.Count != "" && (opts.Count == "exact" || opts.Count == "planned" || opts.Count == "estimated") {
+		headers.Add("Prefer", fmt.Sprintf("count=%s", opts.Count))
+	}
+
+	builder := NewBuilder[interface{}](q.client, method, q.url, &BuilderOptions{
+		Headers: headers,
+		Schema:  q.schema,
+	})
+
+	return &FilterBuilder[interface{}]{Builder: builder}
 }

@@ -3,346 +3,329 @@ package postgrest
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"regexp"
-	"slices"
-	"strconv"
 	"strings"
 )
 
-// FilterBuilder describes a builder for a filtered result set.
-type FilterBuilder struct {
-	client    *Client
-	method    string // One of "HEAD", "GET", "POST", "PUT", "DELETE"
-	body      []byte
-	tableName string
-	headers   map[string]string
-	params    map[string]string
-	err       error
-}
-
-// ExecuteString runs the PostgREST query, returning the result as a JSON
-// string.
-func (f *FilterBuilder) ExecuteString() (string, int64, error) {
-	return executeString(context.Background(), f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params, f.err)
-}
-
-// ExecuteStringWithContext runs the PostgREST query, returning the result as
-// a JSON string.
-func (f *FilterBuilder) ExecuteStringWithContext(ctx context.Context) (string, int64, error) {
-	return executeString(ctx, f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params, f.err)
-}
-
-// Execute runs the PostgREST query, returning the result as a byte slice.
-func (f *FilterBuilder) Execute() ([]byte, int64, error) {
-	return execute(context.Background(), f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params, f.err)
-}
-
-// ExecuteWithContext runs the PostgREST query with the given context,
-// returning the result as a byte slice.
-func (f *FilterBuilder) ExecuteWithContext(ctx context.Context) ([]byte, int64, error) {
-	return execute(ctx, f.client, f.method, f.body, []string{f.tableName}, f.headers, f.params, f.err)
-}
-
-// ExecuteTo runs the PostgREST query, encoding the result to the supplied
-// interface. Note that the argument for the to parameter should always be a
-// reference to a slice.
-func (f *FilterBuilder) ExecuteTo(to interface{}) (countType, error) {
-	return executeTo(context.Background(), f.client, f.method, f.body, to, []string{f.tableName}, f.headers, f.params, f.err)
-}
-
-// ExecuteToWithContext runs the PostgREST query with the given context,
-// encoding the result to the supplied interface. Note that the argument for
-// the to parameter should always be a reference to a slice.
-func (f *FilterBuilder) ExecuteToWithContext(ctx context.Context, to interface{}) (countType, error) {
-	return executeTo(ctx, f.client, f.method, f.body, to, []string{f.tableName}, f.headers, f.params, f.err)
+// FilterBuilder provides filtering methods for queries
+// Similar to PostgrestFilterBuilder in postgrest-js
+type FilterBuilder[T any] struct {
+	*Builder[T]
 }
 
 var filterOperators = []string{"eq", "neq", "gt", "gte", "lt", "lte", "like", "ilike", "is", "in", "cs", "cd", "sl", "sr", "nxl", "nxr", "adj", "ov", "fts", "plfts", "phfts", "wfts"}
 
 // appendFilter is a helper method that appends a filter to existing filters on a column
-func (f *FilterBuilder) appendFilter(column, filterValue string) *FilterBuilder {
-	if existing, ok := f.params[column]; ok && existing != "" {
+func (f *FilterBuilder[T]) appendFilter(column, filterValue string) *FilterBuilder[T] {
+	query := f.url.Query()
+	existing := query.Get(column)
+	andValue := query.Get("and")
+
+	// Check if there's already an 'and' param that contains filters for this column
+	columnPrefix := column + "."
+	if andValue != "" && strings.Contains(andValue, columnPrefix) {
+		// Append to existing 'and' param
+		andValue = strings.TrimSuffix(andValue, ")") + "," + column + "." + filterValue + ")"
+		query.Set("and", andValue)
+	} else if existing != "" {
 		// If a filter already exists for this column, combine with 'and'
-		f.params["and"] = fmt.Sprintf("(%s.%s,%s.%s)", column, existing, column, filterValue)
-		delete(f.params, column)
-	} else if existingAnd, ok := f.params["and"]; ok {
-		// If an 'and' parameter already exists, append to it
-		f.params["and"] = strings.TrimSuffix(existingAnd, ")") + "," + column + "." + filterValue + ")"
+		if andValue != "" {
+			andValue = strings.TrimSuffix(andValue, ")") + "," + column + "." + filterValue + ")"
+		} else {
+			andValue = fmt.Sprintf("(%s.%s,%s.%s)", column, existing, column, filterValue)
+		}
+		query.Set("and", andValue)
+		query.Del(column)
 	} else {
-		f.params[column] = filterValue
+		query.Set(column, filterValue)
 	}
+	f.url.RawQuery = query.Encode()
 	return f
 }
 
 func isOperator(value string) bool {
-	return slices.Contains(filterOperators, value)
+	for _, op := range filterOperators {
+		if op == value {
+			return true
+		}
+	}
+	return false
 }
 
-// Filter adds a filtering operator to the query. For a list of available
-// operators, see: https://postgrest.org/en/stable/api.html#operators
-func (f *FilterBuilder) Filter(column, operator, value string) *FilterBuilder {
+// Filter adds a filtering operator to the query
+func (f *FilterBuilder[T]) Filter(column, operator, value string) *FilterBuilder[T] {
 	if !isOperator(operator) {
-		err := fmt.Errorf("invalid Filter operator: %s", operator)
-		f.client.ClientError = err
-		f.err = errors.Join(f.err, err)
 		return f
 	}
 	return f.appendFilter(column, fmt.Sprintf("%s.%s", operator, value))
 }
 
-func (f *FilterBuilder) And(filters, foreignTable string) *FilterBuilder {
-	if foreignTable != "" {
-		f.params[foreignTable+".and"] = fmt.Sprintf("(%s)", filters)
-	} else {
-		f.params[foreignTable+"and"] = fmt.Sprintf("(%s)", filters)
-	}
-	return f
+// Eq matches only rows where column is equal to value
+func (f *FilterBuilder[T]) Eq(column string, value interface{}) *FilterBuilder[T] {
+	return f.appendFilter(column, fmt.Sprintf("eq.%v", value))
 }
 
-func (f *FilterBuilder) Or(filters, foreignTable string) *FilterBuilder {
-	if foreignTable != "" {
-		f.params[foreignTable+".or"] = fmt.Sprintf("(%s)", filters)
-	} else {
-		f.params[foreignTable+"or"] = fmt.Sprintf("(%s)", filters)
-	}
-	return f
+// Neq matches only rows where column is not equal to value
+func (f *FilterBuilder[T]) Neq(column string, value interface{}) *FilterBuilder[T] {
+	return f.appendFilter(column, fmt.Sprintf("neq.%v", value))
 }
 
-func (f *FilterBuilder) Not(column, operator, value string) *FilterBuilder {
-	if !isOperator(operator) {
-		return f
-	}
-	return f.Filter(column, "not."+operator, value)
+// Gt matches only rows where column is greater than value
+func (f *FilterBuilder[T]) Gt(column string, value interface{}) *FilterBuilder[T] {
+	return f.appendFilter(column, fmt.Sprintf("gt.%v", value))
 }
 
-func (f *FilterBuilder) Match(userQuery map[string]string) *FilterBuilder {
-	for key, value := range userQuery {
-		f.Filter(key, "eq", value)
-	}
-	return f
+// Gte matches only rows where column is greater than or equal to value
+func (f *FilterBuilder[T]) Gte(column string, value interface{}) *FilterBuilder[T] {
+	return f.appendFilter(column, fmt.Sprintf("gte.%v", value))
 }
 
-func (f *FilterBuilder) Eq(column, value string) *FilterBuilder {
-	return f.Filter(column, "eq", value)
+// Lt matches only rows where column is less than value
+func (f *FilterBuilder[T]) Lt(column string, value interface{}) *FilterBuilder[T] {
+	return f.appendFilter(column, fmt.Sprintf("lt.%v", value))
 }
 
-func (f *FilterBuilder) Neq(column, value string) *FilterBuilder {
-	return f.Filter(column, "neq", value)
+// Lte matches only rows where column is less than or equal to value
+func (f *FilterBuilder[T]) Lte(column string, value interface{}) *FilterBuilder[T] {
+	return f.appendFilter(column, fmt.Sprintf("lte.%v", value))
 }
 
-func (f *FilterBuilder) Gt(column, value string) *FilterBuilder {
-	return f.Filter(column, "gt", value)
+// Like matches only rows where column matches pattern case-sensitively
+func (f *FilterBuilder[T]) Like(column, pattern string) *FilterBuilder[T] {
+	return f.appendFilter(column, fmt.Sprintf("like.%s", pattern))
 }
 
-func (f *FilterBuilder) Gte(column, value string) *FilterBuilder {
-	return f.Filter(column, "gte", value)
+// LikeAllOf matches only rows where column matches all of patterns case-sensitively
+func (f *FilterBuilder[T]) LikeAllOf(column string, patterns []string) *FilterBuilder[T] {
+	return f.appendFilter(column, fmt.Sprintf("like(all).{%s}", strings.Join(patterns, ",")))
 }
 
-func (f *FilterBuilder) Lt(column, value string) *FilterBuilder {
-	return f.Filter(column, "lt", value)
+// LikeAnyOf matches only rows where column matches any of patterns case-sensitively
+func (f *FilterBuilder[T]) LikeAnyOf(column string, patterns []string) *FilterBuilder[T] {
+	return f.appendFilter(column, fmt.Sprintf("like(any).{%s}", strings.Join(patterns, ",")))
 }
 
-func (f *FilterBuilder) Lte(column, value string) *FilterBuilder {
-	return f.Filter(column, "lte", value)
+// Ilike matches only rows where column matches pattern case-insensitively
+func (f *FilterBuilder[T]) Ilike(column, pattern string) *FilterBuilder[T] {
+	return f.appendFilter(column, fmt.Sprintf("ilike.%s", pattern))
 }
 
-func (f *FilterBuilder) Like(column, value string) *FilterBuilder {
-	return f.Filter(column, "like", value)
+// IlikeAllOf matches only rows where column matches all of patterns case-insensitively
+func (f *FilterBuilder[T]) IlikeAllOf(column string, patterns []string) *FilterBuilder[T] {
+	return f.appendFilter(column, fmt.Sprintf("ilike(all).{%s}", strings.Join(patterns, ",")))
 }
 
-func (f *FilterBuilder) Ilike(column, value string) *FilterBuilder {
-	return f.Filter(column, "ilike", value)
+// IlikeAnyOf matches only rows where column matches any of patterns case-insensitively
+func (f *FilterBuilder[T]) IlikeAnyOf(column string, patterns []string) *FilterBuilder[T] {
+	return f.appendFilter(column, fmt.Sprintf("ilike(any).{%s}", strings.Join(patterns, ",")))
 }
 
-func (f *FilterBuilder) Is(column, value string) *FilterBuilder {
-	return f.Filter(column, "is", value)
+// Is matches only rows where column IS value
+func (f *FilterBuilder[T]) Is(column string, value interface{}) *FilterBuilder[T] {
+	return f.appendFilter(column, fmt.Sprintf("is.%v", value))
 }
 
-func (f *FilterBuilder) In(column string, values []string) *FilterBuilder {
+// In matches only rows where column is included in the values array
+func (f *FilterBuilder[T]) In(column string, values []interface{}) *FilterBuilder[T] {
+	postgrestReservedCharsRegexp := regexp.MustCompile(`[,()]`)
 	var cleanedValues []string
-	illegalChars := regexp.MustCompile("[,()]")
-	for _, value := range values {
-		exp := illegalChars.MatchString(value)
-		if exp {
-			cleanedValues = append(cleanedValues, fmt.Sprintf("\"%s\"", value))
+	for _, v := range values {
+		valStr := fmt.Sprintf("%v", v)
+		if postgrestReservedCharsRegexp.MatchString(valStr) {
+			cleanedValues = append(cleanedValues, fmt.Sprintf(`"%s"`, valStr))
 		} else {
-			cleanedValues = append(cleanedValues, value)
+			cleanedValues = append(cleanedValues, valStr)
 		}
 	}
 	return f.appendFilter(column, fmt.Sprintf("in.(%s)", strings.Join(cleanedValues, ",")))
 }
 
-func (f *FilterBuilder) Contains(column string, value []string) *FilterBuilder {
-	newValue := []string{}
-	for _, v := range value {
-		newValue = append(newValue, fmt.Sprintf("%#v", v))
+// Contains matches only rows where column contains every element appearing in value
+func (f *FilterBuilder[T]) Contains(column string, value interface{}) *FilterBuilder[T] {
+	switch v := value.(type) {
+	case string:
+		// range types
+		return f.appendFilter(column, fmt.Sprintf("cs.%s", v))
+	case []interface{}:
+		// array
+		var strValues []string
+		for _, item := range v {
+			strValues = append(strValues, fmt.Sprintf("%v", item))
+		}
+		return f.appendFilter(column, fmt.Sprintf("cs.{%s}", strings.Join(strValues, ",")))
+	default:
+		// json
+		jsonBytes, _ := json.Marshal(value)
+		return f.appendFilter(column, fmt.Sprintf("cs.%s", string(jsonBytes)))
 	}
-
-	valueString := fmt.Sprintf("{%s}", strings.Join(newValue, ","))
-
-	return f.appendFilter(column, "cs."+valueString)
 }
 
-func (f *FilterBuilder) ContainedBy(column string, value []string) *FilterBuilder {
-	newValue := []string{}
-	for _, v := range value {
-		newValue = append(newValue, fmt.Sprintf("%#v", v))
+// ContainedBy matches only rows where every element appearing in column is contained by value
+func (f *FilterBuilder[T]) ContainedBy(column string, value interface{}) *FilterBuilder[T] {
+	switch v := value.(type) {
+	case string:
+		// range types
+		return f.appendFilter(column, fmt.Sprintf("cd.%s", v))
+	case []interface{}:
+		// array
+		var strValues []string
+		for _, item := range v {
+			strValues = append(strValues, fmt.Sprintf("%v", item))
+		}
+		return f.appendFilter(column, fmt.Sprintf("cd.{%s}", strings.Join(strValues, ",")))
+	default:
+		// json
+		jsonBytes, _ := json.Marshal(value)
+		return f.appendFilter(column, fmt.Sprintf("cd.%s", string(jsonBytes)))
 	}
-
-	valueString := fmt.Sprintf("{%s}", strings.Join(newValue, ","))
-
-	return f.appendFilter(column, "cd."+valueString)
 }
 
-func (f *FilterBuilder) ContainsObject(column string, value interface{}) *FilterBuilder {
-	sum, err := json.Marshal(value)
-	if err != nil {
-		f.client.ClientError = err
-		f.err = errors.Join(f.err, fmt.Errorf("error marshaling value for ContainsObject: %w", err))
+// RangeGt matches only rows where every element in column is greater than any element in range
+func (f *FilterBuilder[T]) RangeGt(column, rangeValue string) *FilterBuilder[T] {
+	return f.appendFilter(column, fmt.Sprintf("sr.%s", rangeValue))
+}
+
+// RangeGte matches only rows where every element in column is either contained in range or greater than any element in range
+func (f *FilterBuilder[T]) RangeGte(column, rangeValue string) *FilterBuilder[T] {
+	return f.appendFilter(column, fmt.Sprintf("nxl.%s", rangeValue))
+}
+
+// RangeLt matches only rows where every element in column is less than any element in range
+func (f *FilterBuilder[T]) RangeLt(column, rangeValue string) *FilterBuilder[T] {
+	return f.appendFilter(column, fmt.Sprintf("sl.%s", rangeValue))
+}
+
+// RangeLte matches only rows where every element in column is either contained in range or less than any element in range
+func (f *FilterBuilder[T]) RangeLte(column, rangeValue string) *FilterBuilder[T] {
+	return f.appendFilter(column, fmt.Sprintf("nxr.%s", rangeValue))
+}
+
+// RangeAdjacent matches only rows where column is mutually exclusive to range
+func (f *FilterBuilder[T]) RangeAdjacent(column, rangeValue string) *FilterBuilder[T] {
+	return f.appendFilter(column, fmt.Sprintf("adj.%s", rangeValue))
+}
+
+// Overlaps matches only rows where column and value have an element in common
+func (f *FilterBuilder[T]) Overlaps(column string, value interface{}) *FilterBuilder[T] {
+	switch v := value.(type) {
+	case string:
+		// range
+		return f.appendFilter(column, fmt.Sprintf("ov.%s", v))
+	case []interface{}:
+		// array
+		var strValues []string
+		for _, item := range v {
+			strValues = append(strValues, fmt.Sprintf("%v", item))
+		}
+		return f.appendFilter(column, fmt.Sprintf("ov.{%s}", strings.Join(strValues, ",")))
+	default:
 		return f
 	}
-	return f.appendFilter(column, "cs."+string(sum))
 }
 
-func (f *FilterBuilder) ContainedByObject(column string, value interface{}) *FilterBuilder {
-	sum, err := json.Marshal(value)
-	if err != nil {
-		err := fmt.Errorf("error marshaling value for ContainedByObject: %w", err)
-		f.client.ClientError = err
-		f.err = errors.Join(f.err, err)
-		return f
-	}
-	return f.appendFilter(column, "cd."+string(sum))
+// TextSearchOptions contains options for text search
+type TextSearchOptions struct {
+	Config string
+	Type   string // "plain", "phrase", or "websearch"
 }
 
-func (f *FilterBuilder) RangeLt(column, value string) *FilterBuilder {
-	return f.appendFilter(column, "sl."+value)
-}
-
-func (f *FilterBuilder) RangeGt(column, value string) *FilterBuilder {
-	return f.appendFilter(column, "sr."+value)
-}
-
-func (f *FilterBuilder) RangeGte(column, value string) *FilterBuilder {
-	return f.appendFilter(column, "nxl."+value)
-}
-
-func (f *FilterBuilder) RangeLte(column, value string) *FilterBuilder {
-	return f.appendFilter(column, "nxr."+value)
-}
-
-func (f *FilterBuilder) RangeAdjacent(column, value string) *FilterBuilder {
-	return f.appendFilter(column, "adj."+value)
-}
-
-func (f *FilterBuilder) Overlaps(column string, value []string) *FilterBuilder {
-	newValue := []string{}
-	for _, v := range value {
-		newValue = append(newValue, fmt.Sprintf("%#v", v))
+// TextSearch matches only rows where column matches the query string
+func (f *FilterBuilder[T]) TextSearch(column, query string, opts *TextSearchOptions) *FilterBuilder[T] {
+	var typePart string
+	if opts != nil {
+		switch opts.Type {
+		case "plain":
+			typePart = "pl"
+		case "phrase":
+			typePart = "ph"
+		case "websearch":
+			typePart = "w"
+		}
 	}
 
-	valueString := fmt.Sprintf("{%s}", strings.Join(newValue, ","))
-	return f.appendFilter(column, "ov."+valueString)
+	configPart := ""
+	if opts != nil && opts.Config != "" {
+		configPart = fmt.Sprintf("(%s)", opts.Config)
+	}
+
+	return f.appendFilter(column, fmt.Sprintf("%sfts%s.%s", typePart, configPart, query))
 }
 
-// TextSearch performs a full-text search filter. For more information, see
-// https://postgrest.org/en/stable/api.html#fts.
-func (f *FilterBuilder) TextSearch(column, userQuery, config, tsType string) *FilterBuilder {
-	var typePart, configPart string
-	if tsType == "plain" {
-		typePart = "pl"
-	} else if tsType == "phrase" {
-		typePart = "ph"
-	} else if tsType == "websearch" {
-		typePart = "w"
-	} else if tsType == "" {
-		typePart = ""
-	} else {
-		err := fmt.Errorf("invalid text search type: %s", tsType)
-		f.client.ClientError = err
-		f.err = errors.Join(f.err, err)
-		return f
+// Match matches only rows where each column in query keys is equal to its associated value
+func (f *FilterBuilder[T]) Match(query map[string]interface{}) *FilterBuilder[T] {
+	for column, value := range query {
+		f.appendFilter(column, fmt.Sprintf("eq.%v", value))
 	}
-	if config != "" {
-		configPart = fmt.Sprintf("(%s)", config)
-	}
-	return f.appendFilter(column, typePart+"fts"+configPart+"."+userQuery)
+	return f
 }
 
-// OrderOpts describes the options to be provided to Order.
-type OrderOpts struct {
-	Ascending    bool
-	NullsFirst   bool
+// Not matches only rows which doesn't satisfy the filter
+func (f *FilterBuilder[T]) Not(column, operator string, value interface{}) *FilterBuilder[T] {
+	return f.appendFilter(column, fmt.Sprintf("not.%s.%v", operator, value))
+}
+
+// OrOptions contains options for Or
+type OrOptions struct {
+	ReferencedTable string
+	// Deprecated: Use ReferencedTable instead
 	ForeignTable string
 }
 
-// DefaultOrderOpts is the default set of options used by Order.
-var DefaultOrderOpts = OrderOpts{
-	Ascending:    false,
-	NullsFirst:   false,
-	ForeignTable: "",
-}
-
-// Limit the result to the specified count.
-func (f *FilterBuilder) Limit(count int, foreignTable string) *FilterBuilder {
-	if foreignTable != "" {
-		f.params[foreignTable+".limit"] = strconv.Itoa(count)
-	} else {
-		f.params["limit"] = strconv.Itoa(count)
-	}
-
-	return f
-}
-
-// Order the result with the specified column. A pointer to an OrderOpts
-// object can be supplied to specify ordering options.
-func (f *FilterBuilder) Order(column string, opts *OrderOpts) *FilterBuilder {
+// Or matches only rows which satisfy at least one of the filters
+func (f *FilterBuilder[T]) Or(filters string, opts *OrOptions) *FilterBuilder[T] {
 	if opts == nil {
-		opts = &DefaultOrderOpts
+		opts = &OrOptions{}
 	}
 
-	key := "order"
-	if opts.ForeignTable != "" {
-		key = opts.ForeignTable + ".order"
+	key := "or"
+	if opts.ReferencedTable != "" {
+		key = opts.ReferencedTable + ".or"
 	}
 
-	ascendingString := "desc"
-	if opts.Ascending {
-		ascendingString = "asc"
-	}
-
-	nullsString := "nullslast"
-	if opts.NullsFirst {
-		nullsString = "nullsfirst"
-	}
-
-	existingOrder, ok := f.params[key]
-	if ok && existingOrder != "" {
-		f.params[key] = fmt.Sprintf("%s,%s.%s.%s", existingOrder, column, ascendingString, nullsString)
-	} else {
-		f.params[key] = fmt.Sprintf("%s.%s.%s", column, ascendingString, nullsString)
-	}
-
+	query := f.url.Query()
+	query.Set(key, fmt.Sprintf("(%s)", filters))
+	f.url.RawQuery = query.Encode()
 	return f
 }
 
-// Range Limits the result to rows within the specified range, inclusive.
-func (f *FilterBuilder) Range(from, to int, foreignTable string) *FilterBuilder {
-	if foreignTable != "" {
-		f.params[foreignTable+".offset"] = strconv.Itoa(from)
-		f.params[foreignTable+".limit"] = strconv.Itoa(to - from + 1)
-	} else {
-		f.params["offset"] = strconv.Itoa(from)
-		f.params["limit"] = strconv.Itoa(to - from + 1)
-	}
-	return f
+// Embed TransformBuilder methods
+func (f *FilterBuilder[T]) Select(columns string) *FilterBuilder[T] {
+	tb := &TransformBuilder[T]{Builder: f.Builder}
+	return tb.Select(columns)
 }
 
-// Single Retrieves only one row from the result. The total result set must be one row
-// (e.g., by using Limit). Otherwise, this will result in an error.
-func (f *FilterBuilder) Single() *FilterBuilder {
-	f.headers["Accept"] = "application/vnd.pgrst.object+json"
-	return f
+func (f *FilterBuilder[T]) Order(column string, opts *OrderOptions) *TransformBuilder[T] {
+	tb := &TransformBuilder[T]{Builder: f.Builder}
+	return tb.Order(column, opts)
+}
+
+func (f *FilterBuilder[T]) Limit(count int, opts *LimitOptions) *TransformBuilder[T] {
+	tb := &TransformBuilder[T]{Builder: f.Builder}
+	return tb.Limit(count, opts)
+}
+
+func (f *FilterBuilder[T]) Range(from, to int, opts *RangeOptions) *TransformBuilder[T] {
+	tb := &TransformBuilder[T]{Builder: f.Builder}
+	return tb.Range(from, to, opts)
+}
+
+func (f *FilterBuilder[T]) Single() *Builder[T] {
+	tb := &TransformBuilder[T]{Builder: f.Builder}
+	return tb.Single()
+}
+
+func (f *FilterBuilder[T]) MaybeSingle() *Builder[T] {
+	tb := &TransformBuilder[T]{Builder: f.Builder}
+	return tb.MaybeSingle()
+}
+
+// Execute executes the query and returns the response
+func (f *FilterBuilder[T]) Execute(ctx context.Context) (*PostgrestResponse[T], error) {
+	return f.Builder.Execute(ctx)
+}
+
+// ExecuteTo executes the query and unmarshals the result into the provided interface
+func (f *FilterBuilder[T]) ExecuteTo(ctx context.Context, to interface{}) (*int64, error) {
+	return f.Builder.ExecuteTo(ctx, to)
 }
