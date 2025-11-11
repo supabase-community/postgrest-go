@@ -228,9 +228,6 @@ func (t *TransformBuilder[T]) Explain(opts *ExplainOptions) *Builder[interface{}
 	}
 
 	optionsStr := strings.Join(options, "|")
-	if optionsStr == "" {
-		optionsStr = ""
-	}
 
 	forMediatype := t.headers.Get("Accept")
 	if forMediatype == "" {
