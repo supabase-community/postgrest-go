@@ -1,13 +1,14 @@
 package postgrest
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
-	"io"
+	"fmt"
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 	"sync"
 )
 
@@ -15,10 +16,13 @@ var (
 	version = "v0.1.1"
 )
 
+// Client represents a PostgREST client
+// Similar to PostgrestClient in postgrest-js
 type Client struct {
 	ClientError error
-	session     http.Client
+	session     *http.Client
 	Transport   *transport
+	schemaName  string
 }
 
 // NewClientWithError constructs a new client given a URL to a Postgrest instance.
@@ -36,12 +40,14 @@ func NewClientWithError(rawURL, schema string, headers map[string]string) (*Clie
 	}
 
 	c := Client{
-		session:   http.Client{Transport: &t},
-		Transport: &t,
+		session:    &http.Client{Transport: &t},
+		Transport:  &t,
+		schemaName: schema,
 	}
 
 	if schema == "" {
 		schema = "public"
+		c.schemaName = schema
 	}
 
 	// Set required headers
@@ -77,8 +83,9 @@ func (c *Client) PingWithError() error {
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
-	if resp.Status != "200 OK" {
+	if resp.StatusCode != 200 {
 		return errors.New("ping failed")
 	}
 
@@ -108,6 +115,7 @@ func (c *Client) SetAuthToken(authToken string) *Client {
 
 // ChangeSchema modifies the schema for subsequent requests.
 func (c *Client) ChangeSchema(schema string) *Client {
+	c.schemaName = schema
 	c.Transport.SetHeaders(map[string]string{
 		"Accept-Profile":  schema,
 		"Content-Profile": schema,
@@ -115,64 +123,115 @@ func (c *Client) ChangeSchema(schema string) *Client {
 	return c
 }
 
-// From sets the table to query from.
-func (c *Client) From(table string) *QueryBuilder {
-	return &QueryBuilder{client: c, tableName: table, headers: map[string]string{}, params: map[string]string{}}
+// Schema selects a schema to query or perform an function (rpc) call
+func (c *Client) Schema(schema string) *Client {
+	newClient := &Client{
+		session:    c.session,
+		Transport:  c.Transport,
+		schemaName: schema,
+	}
+
+	// Update schema headers
+	newClient.Transport.SetHeaders(map[string]string{
+		"Accept-Profile":  schema,
+		"Content-Profile": schema,
+	})
+
+	return newClient
 }
 
-// RpcWithError executes a Postgres function (a.k.a., Remote Prodedure Call), given the
+// From sets the table or view to query from
+func (c *Client) From(relation string) *QueryBuilder[map[string]interface{}] {
+	return NewQueryBuilder[map[string]interface{}](c, relation)
+}
+
+// RpcOptions contains options for RPC
+type RpcOptions struct {
+	Head  bool
+	Get   bool
+	Count string // "exact", "planned", or "estimated"
+}
+
+// Rpc performs a function call
+func (c *Client) Rpc(fn string, args interface{}, opts *RpcOptions) *FilterBuilder[interface{}] {
+	if opts == nil {
+		opts = &RpcOptions{}
+	}
+
+	var method string
+	var body interface{}
+
+	rpcURL := c.Transport.baseURL.JoinPath("rpc", fn)
+
+	headers := make(http.Header)
+	if c.Transport != nil {
+		c.Transport.mu.RLock()
+		for key, values := range c.Transport.header {
+			for _, val := range values {
+				headers.Add(key, val)
+			}
+		}
+		c.Transport.mu.RUnlock()
+	}
+
+	if opts.Head || opts.Get {
+		if opts.Head {
+			method = "HEAD"
+		} else {
+			method = "GET"
+		}
+		// Add args as query parameters
+		if argsMap, ok := args.(map[string]interface{}); ok {
+			query := rpcURL.Query()
+			for name, value := range argsMap {
+				if value != nil {
+					// Handle array values
+					if arr, ok := value.([]interface{}); ok {
+						var strValues []string
+						for _, v := range arr {
+							strValues = append(strValues, fmt.Sprintf("%v", v))
+						}
+						query.Set(name, fmt.Sprintf("{%s}", strings.Join(strValues, ",")))
+					} else {
+						query.Set(name, fmt.Sprintf("%v", value))
+					}
+				}
+			}
+			rpcURL.RawQuery = query.Encode()
+		}
+	} else {
+		method = "POST"
+		body = args
+	}
+
+	if opts.Count != "" && (opts.Count == "exact" || opts.Count == "planned" || opts.Count == "estimated") {
+		headers.Add("Prefer", fmt.Sprintf("count=%s", opts.Count))
+	}
+
+	builder := NewBuilder[interface{}](c, method, rpcURL, &BuilderOptions{
+		Headers: headers,
+		Schema:  c.schemaName,
+		Body:    body,
+	})
+
+	return &FilterBuilder[interface{}]{Builder: builder}
+}
+
+// RpcWithError executes a Postgres function (a.k.a., Remote Procedure Call), given the
 // function name and, optionally, a body, returning the result as a string.
 func (c *Client) RpcWithError(name string, count string, rpcBody interface{}) (string, error) {
-	// Get body if it exists
-	var byteBody []byte = nil
-	if rpcBody != nil {
-		jsonBody, err := json.Marshal(rpcBody)
-		if err != nil {
-			return "", err
-		}
-		byteBody = jsonBody
-	}
-
-	readerBody := bytes.NewBuffer(byteBody)
-	url := path.Join(c.Transport.baseURL.Path, "rpc", name)
-	req, err := http.NewRequest("POST", url, readerBody)
+	opts := &RpcOptions{Count: count}
+	filterBuilder := c.Rpc(name, rpcBody, opts)
+	response, err := filterBuilder.Execute(context.Background())
 	if err != nil {
 		return "", err
 	}
-
-	if count != "" && (count == `exact` || count == `planned` || count == `estimated`) {
-		req.Header.Add("Prefer", "count="+count)
+	if response.Error != nil {
+		return "", response.Error
 	}
-
-	resp, err := c.session.Do(req)
-	if err != nil {
-		return "", err
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	result := string(body)
-
-	err = resp.Body.Close()
-	if err != nil {
-		return "", err
-	}
-
-	return result, nil
-}
-
-// Rpc executes a Postgres function (a.k.a., Remote Prodedure Call), given the
-// function name and, optionally, a body, returning the result as a string.
-func (c *Client) Rpc(name string, count string, rpcBody interface{}) string {
-	result, err := c.RpcWithError(name, count, rpcBody)
-	if err != nil {
-		c.ClientError = err
-		return ""
-	}
-	return result
+	// Convert response.Data to string
+	dataBytes, _ := json.Marshal(response.Data)
+	return string(dataBytes), nil
 }
 
 type transport struct {

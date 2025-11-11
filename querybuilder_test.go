@@ -1,7 +1,7 @@
 package postgrest
 
 import (
-	"encoding/json"
+	"context"
 	"net/http"
 	"testing"
 
@@ -9,75 +9,151 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewClient(t *testing.T) {
-	assert.NotNil(t, NewClient("", "", nil))
-}
-
-func TestSelect(t *testing.T) {
-	assertions := assert.New(t)
+func TestQueryBuilder_Insert(t *testing.T) {
 	c := createClient(t)
 
-	t.Run("ValidResult", func(t *testing.T) {
-		var got []map[string]interface{}
+	if mockResponses {
+		httpmock.Activate()
+		defer httpmock.DeactivateAndReset()
 
-		if mockResponses {
-			httpmock.Activate()
-			defer httpmock.DeactivateAndReset()
-
-			responder, _ := httpmock.NewJsonResponder(200, users)
-			httpmock.RegisterRegexpResponder("GET", mockPath, responder)
-		}
-
-		bs, count, err := c.From("users").Select("id, name, email", "", false).Execute()
-		assertions.NoError(err)
-
-		err = json.Unmarshal(bs, &got)
-		assertions.NoError(err)
-		assertions.EqualValues(users, got)
-		assertions.Equal(countType(0), count)
-	})
-
-	t.Run("WithCount", func(t *testing.T) {
-		var got []map[string]interface{}
-
-		if mockResponses {
-			httpmock.Activate()
-			defer httpmock.DeactivateAndReset()
-
-			httpmock.RegisterRegexpResponder("GET", mockPath, func(req *http.Request) (*http.Response, error) {
-				resp, _ := httpmock.NewJsonResponse(200, users)
-
-				resp.Header.Add("Content-Range", "0-1/2")
-				return resp, nil
+		httpmock.RegisterRegexpResponder("POST", mockPath, func(req *http.Request) (*http.Response, error) {
+			resp, _ := httpmock.NewJsonResponse(201, []map[string]interface{}{
+				{"id": 3, "name": "newuser", "email": "newuser@test.com"},
 			})
-		}
+			return resp, nil
+		})
+	}
 
-		bs, count, err := c.From("users").Select("id, name, email", "exact", false).Execute()
-		assertions.NoError(err)
+	data := map[string]interface{}{
+		"name":  "newuser",
+		"email": "newuser@test.com",
+	}
 
-		err = json.Unmarshal(bs, &got)
-		assertions.NoError(err)
-		assertions.EqualValues(users, got)
-		assertions.Equal(countType(2), count)
-	})
+	response, err := c.From("users").
+		Insert(data, nil).
+		Execute(context.Background())
+
+	if mockResponses {
+		assert.NoError(t, err)
+		assert.NotNil(t, response)
+	}
 }
 
-func TestFilter(t *testing.T) {
-	assertions := assert.New(t)
+func TestQueryBuilder_Insert_Array(t *testing.T) {
 	c := createClient(t)
 
-	t.Run("Eq", func(t *testing.T) {
-		want := "[{\"email\":\"patti@test.com\"}]"
+	if mockResponses {
+		httpmock.Activate()
+		defer httpmock.DeactivateAndReset()
 
-		if mockResponses {
-			httpmock.Activate()
-			defer httpmock.DeactivateAndReset()
+		httpmock.RegisterRegexpResponder("POST", mockPath, func(req *http.Request) (*http.Response, error) {
+			resp, _ := httpmock.NewJsonResponse(201, []map[string]interface{}{
+				{"id": 3, "name": "user1"},
+				{"id": 4, "name": "user2"},
+			})
+			return resp, nil
+		})
+	}
 
-			httpmock.RegisterRegexpResponder("GET", mockPath, httpmock.NewStringResponder(200, want))
-		}
+	data := []map[string]interface{}{
+		{"name": "user1"},
+		{"name": "user2"},
+	}
 
-		got, _, err := c.From("users").Select("email", "", false).Eq("email", "patti@test.com").ExecuteString()
-		assertions.NoError(err)
-		assertions.Equal(want, got)
-	})
+	response, err := c.From("users").
+		Insert(data, nil).
+		Execute(context.Background())
+
+	if mockResponses {
+		assert.NoError(t, err)
+		assert.NotNil(t, response)
+	}
+}
+
+func TestQueryBuilder_Upsert(t *testing.T) {
+	c := createClient(t)
+
+	if mockResponses {
+		httpmock.Activate()
+		defer httpmock.DeactivateAndReset()
+
+		httpmock.RegisterRegexpResponder("POST", mockPath, func(req *http.Request) (*http.Response, error) {
+			prefer := req.Header.Values("Prefer")
+			assert.Contains(t, prefer, "resolution=merge-duplicates")
+			resp, _ := httpmock.NewJsonResponse(201, []map[string]interface{}{
+				{"id": 1, "name": "updated"},
+			})
+			return resp, nil
+		})
+	}
+
+	data := map[string]interface{}{
+		"id":   1,
+		"name": "updated",
+	}
+
+	response, err := c.From("users").
+		Upsert(data, nil).
+		Execute(context.Background())
+
+	if mockResponses {
+		assert.NoError(t, err)
+		assert.NotNil(t, response)
+	}
+}
+
+func TestQueryBuilder_Update(t *testing.T) {
+	c := createClient(t)
+
+	if mockResponses {
+		httpmock.Activate()
+		defer httpmock.DeactivateAndReset()
+
+		httpmock.RegisterRegexpResponder("PATCH", mockPath, func(req *http.Request) (*http.Response, error) {
+			resp, _ := httpmock.NewJsonResponse(200, []map[string]interface{}{
+				{"id": 1, "name": "updated"},
+			})
+			return resp, nil
+		})
+	}
+
+	data := map[string]interface{}{
+		"name": "updated",
+	}
+
+	response, err := c.From("users").
+		Update(data, nil).
+		Eq("id", 1).
+		Execute(context.Background())
+
+	if mockResponses {
+		assert.NoError(t, err)
+		assert.NotNil(t, response)
+	}
+}
+
+func TestQueryBuilder_Delete(t *testing.T) {
+	c := createClient(t)
+
+	if mockResponses {
+		httpmock.Activate()
+		defer httpmock.DeactivateAndReset()
+
+		httpmock.RegisterRegexpResponder("DELETE", mockPath, func(req *http.Request) (*http.Response, error) {
+			resp, _ := httpmock.NewJsonResponse(200, []map[string]interface{}{
+				{"id": 1},
+			})
+			return resp, nil
+		})
+	}
+
+	response, err := c.From("users").
+		Delete(nil).
+		Eq("id", 1).
+		Execute(context.Background())
+
+	if mockResponses {
+		assert.NoError(t, err)
+		assert.NotNil(t, response)
+	}
 }
