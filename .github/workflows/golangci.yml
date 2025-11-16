@@ -9,12 +9,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Set up Go 1.21
-      uses: actions/setup-go@v2
+      uses: actions/setup-go@v4
       with:
-        go-version: 1.21.1
+        go-version: "1.21.1"
       id: go
     - name: Check out code into the Go module directory
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
     - name: Get dependencies
       run: |
           go get -v -t -d ./...
@@ -26,7 +26,8 @@ jobs:
       run: go build -v .
     - name: Run Tests
       run: go test -v ./...
-    - name: Get golangci-lint
-      run: wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.54.2
-    - name: Run linter
-      run: ./bin/golangci-lint run --out-format=line-number --timeout=15m
+    - name: Run golangci-lint
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: latest
+        args: --timeout=15m --out-format=line-number
