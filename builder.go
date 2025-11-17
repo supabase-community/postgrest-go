@@ -306,13 +306,8 @@ func (b *Builder[T]) Execute(ctx context.Context) (*PostgrestResponse[T], error)
 						return response, nil
 					} else if len(arr) == 1 {
 						// Unmarshal single item
-						itemBytes, err := json.Marshal(arr[0])
-						if err != nil {
-							return nil, fmt.Errorf("error marshaling single item: %w", err)
-						}
-						if err := json.Unmarshal(itemBytes, &response.Data); err != nil {
-							return nil, fmt.Errorf("error unmarshaling single item: %w", err)
-						}
+						itemBytes, _ := json.Marshal(arr[0])
+						json.Unmarshal(itemBytes, &response.Data)
 					} else {
 						// Empty array, return null equivalent
 						response.Data = *new(T)
@@ -339,9 +334,7 @@ func (b *Builder[T]) Execute(ctx context.Context) (*PostgrestResponse[T], error)
 					}
 				}
 			} else {
-				if err := json.Unmarshal(bodyBytes, &response.Data); err != nil {
-					return nil, fmt.Errorf("error unmarshaling response: %w", err)
-				}
+				json.Unmarshal(bodyBytes, &response.Data)
 			}
 		}
 	}
