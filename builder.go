@@ -261,10 +261,9 @@ func (b *Builder[T]) Execute(ctx context.Context) (*PostgrestResponse[T], error)
 			if _, ok := any(zeroT).(string); ok {
 				response.Data = any(strData).(T)
 			} else {
-				// If T is not string, try to unmarshal normally
-				if err := json.Unmarshal(bodyBytes, &response.Data); err != nil {
-					return nil, fmt.Errorf("error unmarshaling response: %w", err)
-				}
+				// If T is not string, for plan text we can't unmarshal as JSON
+				// Just leave Data as zero value - this is expected behavior for non-string types
+				// The response body is available as plain text but can't be unmarshaled into non-string T
 			}
 		} else if len(bodyBytes) > 0 {
 			acceptHeader := b.headers.Get("Accept")
@@ -319,9 +318,24 @@ func (b *Builder[T]) Execute(ctx context.Context) (*PostgrestResponse[T], error)
 						response.Data = *new(T)
 					}
 				} else {
-					// Not an array, unmarshal directly
-					if err := json.Unmarshal(bodyBytes, &response.Data); err != nil {
-						return nil, fmt.Errorf("error unmarshaling response: %w", err)
+					// Not an array, it's a single object
+					// Check if T is a slice type - if so, wrap the object in an array
+					var zeroT T
+					tType := reflect.TypeOf(zeroT)
+					if tType != nil && tType.Kind() == reflect.Slice {
+						// T is a slice type, wrap single object in array
+						var arrJSON []byte
+						arrJSON = append(arrJSON, '[')
+						arrJSON = append(arrJSON, bodyBytes...)
+						arrJSON = append(arrJSON, ']')
+						if err := json.Unmarshal(arrJSON, &response.Data); err != nil {
+							return nil, fmt.Errorf("error unmarshaling single object array: %w", err)
+						}
+					} else {
+						// T is not a slice, unmarshal directly
+						if err := json.Unmarshal(bodyBytes, &response.Data); err != nil {
+							return nil, fmt.Errorf("error unmarshaling response: %w", err)
+						}
 					}
 				}
 			} else {
