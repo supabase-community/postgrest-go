@@ -262,7 +262,9 @@ func (b *Builder[T]) Execute(ctx context.Context) (*PostgrestResponse[T], error)
 				response.Data = any(strData).(T)
 			} else {
 				// If T is not string, try to unmarshal normally
-				json.Unmarshal(bodyBytes, &response.Data)
+				if err := json.Unmarshal(bodyBytes, &response.Data); err != nil {
+					return nil, fmt.Errorf("error unmarshaling response: %w", err)
+				}
 			}
 		} else if len(bodyBytes) > 0 {
 			acceptHeader := b.headers.Get("Accept")
@@ -305,18 +307,27 @@ func (b *Builder[T]) Execute(ctx context.Context) (*PostgrestResponse[T], error)
 						return response, nil
 					} else if len(arr) == 1 {
 						// Unmarshal single item
-						itemBytes, _ := json.Marshal(arr[0])
-						json.Unmarshal(itemBytes, &response.Data)
+						itemBytes, err := json.Marshal(arr[0])
+						if err != nil {
+							return nil, fmt.Errorf("error marshaling single item: %w", err)
+						}
+						if err := json.Unmarshal(itemBytes, &response.Data); err != nil {
+							return nil, fmt.Errorf("error unmarshaling single item: %w", err)
+						}
 					} else {
 						// Empty array, return null equivalent
 						response.Data = *new(T)
 					}
 				} else {
 					// Not an array, unmarshal directly
-					json.Unmarshal(bodyBytes, &response.Data)
+					if err := json.Unmarshal(bodyBytes, &response.Data); err != nil {
+						return nil, fmt.Errorf("error unmarshaling response: %w", err)
+					}
 				}
 			} else {
-				json.Unmarshal(bodyBytes, &response.Data)
+				if err := json.Unmarshal(bodyBytes, &response.Data); err != nil {
+					return nil, fmt.Errorf("error unmarshaling response: %w", err)
+				}
 			}
 		}
 	}
