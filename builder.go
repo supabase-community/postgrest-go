@@ -260,10 +260,6 @@ func (b *Builder[T]) Execute(ctx context.Context) (*PostgrestResponse[T], error)
 			var zeroT T
 			if _, ok := any(zeroT).(string); ok {
 				response.Data = any(strData).(T)
-			} else {
-				// If T is not string, for plan text we can't unmarshal as JSON
-				// Just leave Data as zero value - this is expected behavior for non-string types
-				// The response body is available as plain text but can't be unmarshaled into non-string T
 			}
 		} else if len(bodyBytes) > 0 {
 			acceptHeader := b.headers.Get("Accept")
