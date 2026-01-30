@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	github.com/jarcoal/httpmock v1.4.1
-	github.com/lib/pq v1.10.9
+	github.com/lib/pq v1.11.1
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.40.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.40.0
