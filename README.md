@@ -15,9 +15,54 @@ Full documentation can be found [here](https://pkg.go.dev/github.com/supabase-co
 go get github.com/supabase-community/postgrest-go
 ```
 
+## Version compatibility
+
+`go get` without a version installs the latest **tagged release** (currently **v0.0.12**). The `main` branch has a newer API with generics, structured responses, and context-aware `Execute` methods.
+
+| Install command | API |
+| --- | --- |
+| `go get github.com/supabase-community/postgrest-go` | **v0.0.12** — `Select(columns, count, head)`, `Execute()` returns `([]byte, int64, error)` |
+| `go get github.com/supabase-community/postgrest-go@main` | **main** — `Select(columns, opts)`, `Execute(ctx)` returns `*PostgrestResponse` |
+
+The examples below (except [Basic usage v0.0.12](#basic-usage-v012)) require the **main** branch:
+
+```bash
+go get github.com/supabase-community/postgrest-go@main
+```
+
 ## Quick Start
 
-### Basic Usage
+### Basic usage (v0.0.12) {#basic-usage-v012}
+
+If you installed the default release tag, use this API:
+
+```go
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/supabase-community/postgrest-go"
+)
+
+func main() {
+	client := postgrest.NewClient("http://localhost:3000/rest/v1", "public", nil)
+	if client.ClientError != nil {
+		panic(client.ClientError)
+	}
+
+	data, count, err := client.From("users").Select("*", "", false).Execute()
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("count: %d\n", count)
+	fmt.Println(string(data))
+}
+```
+
+### Basic Usage (main branch)
 
 ```go
 package main
