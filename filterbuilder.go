@@ -16,30 +16,9 @@ type FilterBuilder[T any] struct {
 
 var filterOperators = []string{"eq", "neq", "gt", "gte", "lt", "lte", "like", "ilike", "is", "in", "cs", "cd", "sl", "sr", "nxl", "nxr", "adj", "ov", "fts", "plfts", "phfts", "wfts"}
 
-// appendFilter is a helper method that appends a filter to existing filters on a column
 func (f *FilterBuilder[T]) appendFilter(column, filterValue string) *FilterBuilder[T] {
 	query := f.url.Query()
-	existing := query.Get(column)
-	andValue := query.Get("and")
-
-	// Check if there's already an 'and' param that contains filters for this column
-	columnPrefix := column + "."
-	if andValue != "" && strings.Contains(andValue, columnPrefix) {
-		// Append to existing 'and' param
-		andValue = strings.TrimSuffix(andValue, ")") + "," + column + "." + filterValue + ")"
-		query.Set("and", andValue)
-	} else if existing != "" {
-		// If a filter already exists for this column, combine with 'and'
-		if andValue != "" {
-			andValue = strings.TrimSuffix(andValue, ")") + "," + column + "." + filterValue + ")"
-		} else {
-			andValue = fmt.Sprintf("(%s.%s,%s.%s)", column, existing, column, filterValue)
-		}
-		query.Set("and", andValue)
-		query.Del(column)
-	} else {
-		query.Set(column, filterValue)
-	}
+	query.Add(column, filterValue)
 	f.url.RawQuery = query.Encode()
 	return f
 }

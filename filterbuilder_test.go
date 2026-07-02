@@ -293,15 +293,15 @@ func TestFilterAppend(t *testing.T) {
 	tests := []struct {
 		name     string
 		build    func(*FilterBuilder[[]map[string]interface{}]) *FilterBuilder[[]map[string]interface{}]
-		expected map[string]string
+		expected url.Values
 	}{
 		{
 			name: "Single filter on column",
 			build: func(fb *FilterBuilder[[]map[string]interface{}]) *FilterBuilder[[]map[string]interface{}] {
 				return fb.Eq("age", "25")
 			},
-			expected: map[string]string{
-				"age": "eq.25",
+			expected: url.Values{
+				"age": {"eq.25"},
 			},
 		},
 		{
@@ -309,8 +309,8 @@ func TestFilterAppend(t *testing.T) {
 			build: func(fb *FilterBuilder[[]map[string]interface{}]) *FilterBuilder[[]map[string]interface{}] {
 				return fb.Gte("age", "25").Lte("age", "35")
 			},
-			expected: map[string]string{
-				"and": "(age.gte.25,age.lte.35)",
+			expected: url.Values{
+				"age": {"gte.25", "lte.35"},
 			},
 		},
 		{
@@ -318,8 +318,8 @@ func TestFilterAppend(t *testing.T) {
 			build: func(fb *FilterBuilder[[]map[string]interface{}]) *FilterBuilder[[]map[string]interface{}] {
 				return fb.Gte("age", "25").Lte("age", "35").Neq("age", "30")
 			},
-			expected: map[string]string{
-				"and": "(age.gte.25,age.lte.35,age.neq.30)",
+			expected: url.Values{
+				"age": {"gte.25", "lte.35", "neq.30"},
 			},
 		},
 		{
@@ -327,9 +327,9 @@ func TestFilterAppend(t *testing.T) {
 			build: func(fb *FilterBuilder[[]map[string]interface{}]) *FilterBuilder[[]map[string]interface{}] {
 				return fb.Eq("status", "active").Gte("age", "25").Lte("age", "35")
 			},
-			expected: map[string]string{
-				"status": "eq.active",
-				"and":    "(age.gte.25,age.lte.35)",
+			expected: url.Values{
+				"status": {"eq.active"},
+				"age":    {"gte.25", "lte.35"},
 			},
 		},
 		{
@@ -337,8 +337,8 @@ func TestFilterAppend(t *testing.T) {
 			build: func(fb *FilterBuilder[[]map[string]interface{}]) *FilterBuilder[[]map[string]interface{}] {
 				return fb.In("id", []interface{}{"1", "2", "3"}).Eq("id", "4")
 			},
-			expected: map[string]string{
-				"and": "(id.in.(1,2,3),id.eq.4)",
+			expected: url.Values{
+				"id": {"in.(1,2,3)", "eq.4"},
 			},
 		},
 		{
@@ -346,8 +346,8 @@ func TestFilterAppend(t *testing.T) {
 			build: func(fb *FilterBuilder[[]map[string]interface{}]) *FilterBuilder[[]map[string]interface{}] {
 				return fb.Contains("tags", []interface{}{"golang", "postgres"}).Overlaps("tags", []interface{}{"javascript"})
 			},
-			expected: map[string]string{
-				"and": "(tags.cs.{golang,postgres},tags.ov.{javascript})",
+			expected: url.Values{
+				"tags": {"cs.{golang,postgres}", "ov.{javascript}"},
 			},
 		},
 		{
@@ -355,8 +355,8 @@ func TestFilterAppend(t *testing.T) {
 			build: func(fb *FilterBuilder[[]map[string]interface{}]) *FilterBuilder[[]map[string]interface{}] {
 				return fb.TextSearch("title", "golang", &TextSearchOptions{Type: "plain"}).Like("title", "%tutorial%")
 			},
-			expected: map[string]string{
-				"and": "(title.plfts.golang,title.like.%tutorial%)",
+			expected: url.Values{
+				"title": {"plfts.golang", "like.%tutorial%"},
 			},
 		},
 		{
@@ -364,8 +364,8 @@ func TestFilterAppend(t *testing.T) {
 			build: func(fb *FilterBuilder[[]map[string]interface{}]) *FilterBuilder[[]map[string]interface{}] {
 				return fb.RangeGt("period", "[2022-01-01,2022-12-31]").RangeLt("period", "[2023-01-01,2023-12-31]")
 			},
-			expected: map[string]string{
-				"and": "(period.sr.[2022-01-01,2022-12-31],period.sl.[2023-01-01,2023-12-31])",
+			expected: url.Values{
+				"period": {"sr.[2022-01-01,2022-12-31]", "sl.[2023-01-01,2023-12-31]"},
 			},
 		},
 	}
@@ -380,26 +380,28 @@ func TestFilterAppend(t *testing.T) {
 			}
 
 			result := tt.build(fb)
-
-			// Check that we got the expected params
 			queryParams := result.url.Query()
-			if len(queryParams) != len(tt.expected) {
-				t.Errorf("Expected %d params, got %d", len(tt.expected), len(queryParams))
-			}
 
-			for key, expectedValue := range tt.expected {
-				actualValue := queryParams.Get(key)
-				if actualValue == "" {
-					t.Errorf("Expected param %s not found", key)
-				} else if actualValue != expectedValue {
-					t.Errorf("Param %s: expected %s, got %s", key, expectedValue, actualValue)
+			for key, expectedValues := range tt.expected {
+				actualValues, ok := queryParams[key]
+				if !ok {
+					t.Errorf("expected param %s not found", key)
+					continue
+				}
+				if len(actualValues) != len(expectedValues) {
+					t.Errorf("param %s: expected %d values, got %d (%v)", key, len(expectedValues), len(actualValues), actualValues)
+					continue
+				}
+				for i, exp := range expectedValues {
+					if actualValues[i] != exp {
+						t.Errorf("param %s[%d]: expected %q, got %q", key, i, exp, actualValues[i])
+					}
 				}
 			}
 
-			// Check that no unexpected params exist
 			for key := range queryParams {
 				if _, ok := tt.expected[key]; !ok && key != "select" {
-					t.Errorf("Unexpected param %s found", key)
+					t.Errorf("unexpected param %s found", key)
 				}
 			}
 		})
