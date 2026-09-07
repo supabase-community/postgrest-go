@@ -3,6 +3,12 @@
 [![golangci-lint](https://github.com/supabase-community/postgrest-go/actions/workflows/golangci.yml/badge.svg)](https://github.com/supabase-community/postgrest-go/actions/workflows/golangci.yml) [![CodeFactor](https://www.codefactor.io/repository/github/supabase-community/postgrest-go/badge/main?s=101cab44de33934fd85cadcd9a9b535a05791670)](https://www.codefactor.io/repository/github/supabase-community/postgrest-go/overview/main)
 [![Go Coverage](https://github.com/supabase-community/postgrest-go/wiki/coverage.svg)](https://raw.githack.com/wiki/supabase-community/postgrest-go/coverage.html)
 
+> [!IMPORTANT]
+> **Update, September 2026:**  
+> This codebase is not being actively maintained by Supabase or the community, but it's not the end of the road...
+> We're busy building an official Supabase SDK for Go that will make this repository and the module it publishes obsolete.
+> [This thread](https://github.com/orgs/supabase/discussions/49311) has more information, as well as providing a venue for discussion in the meantime.
+
 Golang client for [PostgREST](https://postgrest.org). The goal of this library is to make an "ORM-like" restful interface.
 
 ## Documentation
