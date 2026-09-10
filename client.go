@@ -220,16 +220,27 @@ func (c *Client) Rpc(fn string, args interface{}, opts *RpcOptions) *FilterBuild
 // RpcWithError executes a Postgres function (a.k.a., Remote Procedure Call), given the
 // function name and, optionally, a body, returning the result as a string.
 func (c *Client) RpcWithError(name string, count string, rpcBody interface{}) (string, error) {
+	return c.RpcWithContext(context.Background(), name, count, rpcBody)
+}
+
+// RpcWithContext executes a Postgres function (RPC) with the given context.
+func (c *Client) RpcWithContext(
+	ctx context.Context,
+	name string,
+	count string,
+	rpcBody interface{},
+) (string, error) {
 	opts := &RpcOptions{Count: count}
 	filterBuilder := c.Rpc(name, rpcBody, opts)
-	response, err := filterBuilder.Execute(context.Background())
+
+	response, err := filterBuilder.Execute(ctx)
 	if err != nil {
 		return "", err
 	}
 	if response.Error != nil {
 		return "", response.Error
 	}
-	// Convert response.Data to string
+
 	dataBytes, _ := json.Marshal(response.Data)
 	return string(dataBytes), nil
 }

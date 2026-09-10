@@ -128,3 +128,16 @@ func TestClient_RpcWithError(t *testing.T) {
 		assert.NotEmpty(t, result)
 	}
 }
+
+func TestClient_RpcWithContext_Canceled(t *testing.T) {
+	c := createClient(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // immediately cancel
+
+	_, err := c.RpcWithContext(ctx, "test_function", "", map[string]interface{}{
+		"a": 1,
+	})
+
+	assert.Error(t, err)
+}
