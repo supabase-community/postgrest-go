@@ -4,6 +4,10 @@ on:
     branches:
       - main
       - development
+  pull_request:
+    branches:
+      - main
+      - development
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -30,4 +34,4 @@ jobs:
       uses: golangci/golangci-lint-action@v8
       with:
         version: v2.4.0
-        args: --timeout=15m --out-format=line-number
+        args: --timeout=15m

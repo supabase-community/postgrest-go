@@ -164,7 +164,11 @@ func (b *Builder[T]) Execute(ctx context.Context) (*PostgrestResponse[T], error)
 			StatusText: "",
 		}, nil
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			_ = err
+		}
+	}()
 
 	// Read response body
 	bodyBytes, err := io.ReadAll(resp.Body)

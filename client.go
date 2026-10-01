@@ -83,7 +83,11 @@ func (c *Client) PingWithError() error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			_ = err
+		}
+	}()
 
 	if resp.StatusCode != 200 {
 		return errors.New("ping failed")

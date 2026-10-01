@@ -2,15 +2,24 @@ package postgrest
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"net/url"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
 )
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
 
 func TestFilterBuilder_ExecuteTo(t *testing.T) {
 	assert := assert.New(t)
@@ -78,6 +87,78 @@ func TestFilterBuilder_ExecuteTo(t *testing.T) {
 			assert.Equal(int64(1), *count)
 		}
 	})
+}
+
+func TestBuilder_ExecuteTo_ReturnsExecuteError(t *testing.T) {
+	c := NewClient("http://localhost:3000", "", nil)
+	testURL, _ := url.Parse("http://localhost:3000/users?select=*")
+	builder := NewBuilder[map[string]interface{}](c, "GET", testURL, nil)
+
+	signalCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	builder.signal = signalCtx
+
+	var target map[string]interface{}
+	count, err := builder.ExecuteTo(context.Background(), &target)
+
+	assert.Nil(t, count)
+	assert.ErrorIs(t, err, context.Canceled)
+}
+
+func TestBuilder_ExecuteTo_ReturnsResponseError(t *testing.T) {
+	c := NewClient("http://localhost:3000", "", nil)
+	c.session = &http.Client{
+		Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			return nil, errors.New("network down")
+		}),
+	}
+
+	var target []map[string]interface{}
+	count, err := c.From("users").Select("*", nil).ExecuteTo(context.Background(), &target)
+
+	assert.Nil(t, count)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "FetchError:")
+}
+
+func TestBuilder_ExecuteTo_ReturnsMarshalResponseDataError(t *testing.T) {
+	c := NewClient("http://localhost:3000", "", nil)
+	testURL, _ := url.Parse("http://localhost:3000/users")
+	builder := NewBuilder[chan int](c, "HEAD", testURL, nil)
+	c.session = &http.Client{
+		Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: 200,
+				Status:     "200 OK",
+				Body:       io.NopCloser(strings.NewReader("")),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	var target interface{}
+	count, err := builder.ExecuteTo(context.Background(), &target)
+
+	assert.Nil(t, count)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "error marshaling response data")
+}
+
+func TestBuilder_ExecuteTo_ReturnsUnmarshalTargetError(t *testing.T) {
+	c := NewClient("http://localhost:3000", "", nil)
+	c.session = &http.Client{
+		Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			resp, _ := httpmock.NewJsonResponse(200, []map[string]interface{}{{"id": 1}})
+			return resp, nil
+		}),
+	}
+
+	var target int
+	count, err := c.From("users").Select("*", nil).ExecuteTo(context.Background(), &target)
+
+	assert.Nil(t, count)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "error unmarshaling to target")
 }
 
 func ExampleFilterBuilder_ExecuteTo() {
@@ -342,6 +423,15 @@ func TestFilterAppend(t *testing.T) {
 			},
 		},
 		{
+			name: "In filter quotes values with reserved characters",
+			build: func(fb *FilterBuilder[[]map[string]interface{}]) *FilterBuilder[[]map[string]interface{}] {
+				return fb.In("id", []interface{}{"abc,def", "a(b)", "plain"})
+			},
+			expected: url.Values{
+				"id": {`in.("abc,def","a(b)",plain)`},
+			},
+		},
+		{
 			name: "Contains filter followed by another filter",
 			build: func(fb *FilterBuilder[[]map[string]interface{}]) *FilterBuilder[[]map[string]interface{}] {
 				return fb.Contains("tags", []interface{}{"golang", "postgres"}).Overlaps("tags", []interface{}{"javascript"})
@@ -351,12 +441,108 @@ func TestFilterAppend(t *testing.T) {
 			},
 		},
 		{
+			name: "Contains range string followed by another filter",
+			build: func(fb *FilterBuilder[[]map[string]interface{}]) *FilterBuilder[[]map[string]interface{}] {
+				return fb.Contains("period", "[2022-01-01,2022-12-31]").Eq("status", "active")
+			},
+			expected: url.Values{
+				"period": {"cs.[2022-01-01,2022-12-31]"},
+				"status": {"eq.active"},
+			},
+		},
+		{
+			name: "Contains JSON value followed by another filter",
+			build: func(fb *FilterBuilder[[]map[string]interface{}]) *FilterBuilder[[]map[string]interface{}] {
+				return fb.Contains("metadata", map[string]interface{}{"role": "admin"}).Eq("status", "active")
+			},
+			expected: url.Values{
+				"metadata": {`cs.{"role":"admin"}`},
+				"status":   {"eq.active"},
+			},
+		},
+		{
+			name: "Overlaps range string followed by another filter",
+			build: func(fb *FilterBuilder[[]map[string]interface{}]) *FilterBuilder[[]map[string]interface{}] {
+				return fb.Overlaps("period", "[2022-01-01,2022-12-31]").Eq("status", "active")
+			},
+			expected: url.Values{
+				"period": {"ov.[2022-01-01,2022-12-31]"},
+				"status": {"eq.active"},
+			},
+		},
+		{
+			name: "Overlaps unsupported type is ignored",
+			build: func(fb *FilterBuilder[[]map[string]interface{}]) *FilterBuilder[[]map[string]interface{}] {
+				return fb.Overlaps("metadata", map[string]interface{}{"role": "admin"}).Eq("status", "active")
+			},
+			expected: url.Values{
+				"status": {"eq.active"},
+			},
+		},
+		{
+			name: "ContainedBy range string followed by another filter",
+			build: func(fb *FilterBuilder[[]map[string]interface{}]) *FilterBuilder[[]map[string]interface{}] {
+				return fb.ContainedBy("period", "[2022-01-01,2022-12-31]").Eq("status", "active")
+			},
+			expected: url.Values{
+				"period": {"cd.[2022-01-01,2022-12-31]"},
+				"status": {"eq.active"},
+			},
+		},
+		{
+			name: "ContainedBy JSON value followed by another filter",
+			build: func(fb *FilterBuilder[[]map[string]interface{}]) *FilterBuilder[[]map[string]interface{}] {
+				return fb.ContainedBy("metadata", map[string]interface{}{"role": "admin"}).Eq("status", "active")
+			},
+			expected: url.Values{
+				"metadata": {`cd.{"role":"admin"}`},
+				"status":   {"eq.active"},
+			},
+		},
+		{
 			name: "Text search followed by Like filter",
 			build: func(fb *FilterBuilder[[]map[string]interface{}]) *FilterBuilder[[]map[string]interface{}] {
 				return fb.TextSearch("title", "golang", &TextSearchOptions{Type: "plain"}).Like("title", "%tutorial%")
 			},
 			expected: url.Values{
 				"title": {"plfts.golang", "like.%tutorial%"},
+			},
+		},
+		{
+			name: "Phrase text search followed by Like filter",
+			build: func(fb *FilterBuilder[[]map[string]interface{}]) *FilterBuilder[[]map[string]interface{}] {
+				return fb.TextSearch("title", "golang tutorial", &TextSearchOptions{Type: "phrase"}).Like("title", "%tutorial%")
+			},
+			expected: url.Values{
+				"title": {"phfts.golang tutorial", "like.%tutorial%"},
+			},
+		},
+		{
+			name: "Websearch text search followed by Like filter",
+			build: func(fb *FilterBuilder[[]map[string]interface{}]) *FilterBuilder[[]map[string]interface{}] {
+				return fb.TextSearch("title", "golang tutorial", &TextSearchOptions{Type: "websearch"}).Like("title", "%tutorial%")
+			},
+			expected: url.Values{
+				"title": {"wfts.golang tutorial", "like.%tutorial%"},
+			},
+		},
+		{
+			name: "Text search with config followed by Like filter",
+			build: func(fb *FilterBuilder[[]map[string]interface{}]) *FilterBuilder[[]map[string]interface{}] {
+				return fb.TextSearch("title", "golang", &TextSearchOptions{Type: "plain", Config: "english"}).Like("title", "%tutorial%")
+			},
+			expected: url.Values{
+				"title": {"plfts(english).golang", "like.%tutorial%"},
+			},
+		},
+		{
+			name: "Or filter with referenced table key",
+			build: func(fb *FilterBuilder[[]map[string]interface{}]) *FilterBuilder[[]map[string]interface{}] {
+				return fb.Or("status.eq.ONLINE,status.eq.OFFLINE", &OrOptions{ReferencedTable: "messages"}).Eq("id", "1")
+			},
+			expected: url.Values{
+				"messages.or": {"(status.eq.ONLINE,status.eq.OFFLINE)"},
+				"id":          {"eq.1"},
 			},
 		},
 		{
@@ -432,6 +618,335 @@ func TestBuilder_ThrowOnError(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, response)
 	}
+}
+
+func TestBuilder_Execute_RequestError(t *testing.T) {
+	c := createClient(t)
+	transportErr := errors.New("network down")
+	c.session = &http.Client{
+		Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			return nil, transportErr
+		}),
+	}
+
+	t.Run("returns fetch error response when throwOnError disabled", func(t *testing.T) {
+		response, err := c.From("users").
+			Select("*", nil).
+			Execute(context.Background())
+
+		assert.NoError(t, err)
+		assert.NotNil(t, response)
+		assert.NotNil(t, response.Error)
+		assert.Contains(t, response.Error.Message, "FetchError:")
+		assert.Contains(t, response.Error.Message, "network down")
+		assert.Contains(t, response.Error.Details, "network down")
+		assert.Equal(t, 0, response.Status)
+	})
+
+	t.Run("returns transport error when throwOnError enabled", func(t *testing.T) {
+		response, err := c.From("users").
+			Select("*", nil).
+			ThrowOnError().
+			Execute(context.Background())
+
+		assert.ErrorIs(t, err, transportErr)
+		assert.Nil(t, response)
+	})
+}
+
+func TestBuilder_Execute_UsesBackgroundWhenContextIsNil(t *testing.T) {
+	c := NewClient("http://localhost:3000", "", nil)
+	requestExecuted := false
+	c.session = &http.Client{
+		Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			requestExecuted = true
+			resp, _ := httpmock.NewJsonResponse(200, []map[string]interface{}{})
+			return resp, nil
+		}),
+	}
+
+	var nilCtx context.Context
+	response, err := c.From("users").Select("*", nil).Execute(nilCtx)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, response)
+	assert.True(t, requestExecuted)
+}
+
+func TestBuilder_Execute_SignalOverridesPassedContext(t *testing.T) {
+	c := NewClient("http://localhost:3000", "", nil)
+	testURL, _ := url.Parse("http://localhost:3000/users?select=*")
+	builder := NewBuilder[map[string]interface{}](c, "GET", testURL, nil)
+
+	signalCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	builder.signal = signalCtx
+
+	response, err := builder.Execute(context.Background())
+
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.Nil(t, response)
+}
+
+func TestBuilder_Execute_ReturnsMarshalBodyError(t *testing.T) {
+	c := NewClient("http://localhost:3000", "", nil)
+	testURL, _ := url.Parse("http://localhost:3000/users")
+	builder := NewBuilder[map[string]interface{}](c, "POST", testURL, &BuilderOptions{
+		Body: map[string]interface{}{
+			"invalid": make(chan int),
+		},
+	})
+
+	response, err := builder.Execute(context.Background())
+
+	assert.Error(t, err)
+	assert.Nil(t, response)
+	assert.Contains(t, err.Error(), "error marshaling body")
+}
+
+func TestBuilder_Execute_ReturnsContextErrorBeforeRequestCreation(t *testing.T) {
+	c := NewClient("http://localhost:3000", "", nil)
+	testURL, _ := url.Parse("http://localhost:3000/users?select=*")
+	builder := NewBuilder[map[string]interface{}](c, "GET", testURL, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	response, err := builder.Execute(ctx)
+
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.Nil(t, response)
+}
+
+func TestBuilder_Execute_ReturnsCreateRequestError(t *testing.T) {
+	c := NewClient("http://localhost:3000", "", nil)
+	testURL, _ := url.Parse("http://localhost:3000/users")
+	builder := NewBuilder[map[string]interface{}](c, "BAD METHOD", testURL, nil)
+
+	response, err := builder.Execute(context.Background())
+
+	assert.Error(t, err)
+	assert.Nil(t, response)
+	assert.Contains(t, err.Error(), "error creating request")
+}
+
+func TestBuilder_Execute_404WithEmptyBodyReturnsNoContent(t *testing.T) {
+	c := NewClient("http://localhost:3000", "", nil)
+	c.session = &http.Client{
+		Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: 404,
+				Status:     "404 Not Found",
+				Body:       io.NopCloser(strings.NewReader("")),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	response, err := c.From("users").Select("*", nil).Execute(context.Background())
+
+	assert.NoError(t, err)
+	assert.NotNil(t, response)
+	assert.Nil(t, response.Error)
+	assert.Equal(t, 204, response.Status)
+	assert.Equal(t, "No Content", response.StatusText)
+}
+
+func TestBuilder_Execute_404WithArrayBodyReturnsOKAndZeroData(t *testing.T) {
+	c := NewClient("http://localhost:3000", "", nil)
+	c.session = &http.Client{
+		Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: 404,
+				Status:     "404 Not Found",
+				Body:       io.NopCloser(strings.NewReader("null")),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	response, err := c.From("users").Select("*", nil).Execute(context.Background())
+
+	assert.NoError(t, err)
+	assert.NotNil(t, response)
+	assert.Nil(t, response.Error)
+	assert.Equal(t, 200, response.Status)
+	assert.Equal(t, "OK", response.StatusText)
+	assert.Nil(t, response.Data)
+}
+
+func TestBuilder_Execute_MaybeSingleClearsZeroRowsError(t *testing.T) {
+	c := NewClient("http://localhost:3000", "", nil)
+	c.session = &http.Client{
+		Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: 406,
+				Status:     "406 Not Acceptable",
+				Body: io.NopCloser(strings.NewReader(
+					`{"message":"JSON object requested, multiple (or no) rows returned","details":"Results contain 0 rows, application/vnd.pgrst.object+json requires 1 row","hint":"","code":"PGRST116"}`,
+				)),
+				Header: make(http.Header),
+			}, nil
+		}),
+	}
+
+	response, err := c.From("users").Select("*", nil).MaybeSingle().Execute(context.Background())
+
+	assert.NoError(t, err)
+	assert.NotNil(t, response)
+	assert.Nil(t, response.Error)
+	assert.Equal(t, 200, response.Status)
+	assert.Equal(t, "OK", response.StatusText)
+}
+
+func TestBuilder_Execute_SingleObjectIntoSliceType(t *testing.T) {
+	c := NewClient("http://localhost:3000", "", nil)
+	c.session = &http.Client{
+		Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: 200,
+				Status:     "200 OK",
+				Body:       io.NopCloser(strings.NewReader(`{"id":1,"name":"sean"}`)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	response, err := c.From("users").Select("*", nil).Single().Execute(context.Background())
+
+	assert.NoError(t, err)
+	assert.NotNil(t, response)
+	assert.Len(t, response.Data, 1)
+	assert.Equal(t, "sean", response.Data[0]["name"])
+}
+
+func TestBuilder_Execute_SingleObjectArrayUnmarshalError(t *testing.T) {
+	c := NewClient("http://localhost:3000", "", nil)
+	c.session = &http.Client{
+		Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: 200,
+				Status:     "200 OK",
+				Body:       io.NopCloser(strings.NewReader(`{"id":`)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	response, err := c.From("users").Select("*", nil).Single().Execute(context.Background())
+
+	assert.Error(t, err)
+	assert.Nil(t, response)
+	assert.Contains(t, err.Error(), "error unmarshaling single object array")
+}
+
+func TestBuilder_Execute_SingleObjectUnmarshalErrorNonSlice(t *testing.T) {
+	c := NewClient("http://localhost:3000", "", nil)
+	testURL, _ := url.Parse("http://localhost:3000/users?select=*")
+	builder := NewBuilder[map[string]interface{}](c, "GET", testURL, nil)
+	builder.headers.Set("Accept", "application/vnd.pgrst.object+json")
+	c.session = &http.Client{
+		Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: 200,
+				Status:     "200 OK",
+				Body:       io.NopCloser(strings.NewReader(`{"id":`)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	response, err := builder.Execute(context.Background())
+
+	assert.Error(t, err)
+	assert.Nil(t, response)
+	assert.Contains(t, err.Error(), "error unmarshaling single object")
+}
+
+func TestBuilder_Execute_MaybeSingleItemUnmarshalError(t *testing.T) {
+	c := NewClient("http://localhost:3000", "", nil)
+	testURL, _ := url.Parse("http://localhost:3000/users?select=*")
+	builder := NewBuilder[int](c, "GET", testURL, nil)
+	builder.isMaybeSingle = true
+	c.session = &http.Client{
+		Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: 200,
+				Status:     "200 OK",
+				Body:       io.NopCloser(strings.NewReader(`[{"id":1}]`)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	response, err := builder.Execute(context.Background())
+
+	assert.Error(t, err)
+	assert.Nil(t, response)
+	assert.Contains(t, err.Error(), "error unmarshaling maybeSingle item")
+}
+
+func TestBuilder_Execute_MaybeSingleObjectArrayUnmarshalError(t *testing.T) {
+	c := NewClient("http://localhost:3000", "", nil)
+	c.session = &http.Client{
+		Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: 200,
+				Status:     "200 OK",
+				Body:       io.NopCloser(strings.NewReader(`{"id":`)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	response, err := c.From("users").Select("*", nil).MaybeSingle().Execute(context.Background())
+
+	assert.Error(t, err)
+	assert.Nil(t, response)
+	assert.Contains(t, err.Error(), "error unmarshaling single object array")
+}
+
+func TestBuilder_Execute_MaybeSingleObjectUnmarshalErrorNonSlice(t *testing.T) {
+	c := NewClient("http://localhost:3000", "", nil)
+	testURL, _ := url.Parse("http://localhost:3000/users?select=*")
+	builder := NewBuilder[map[string]interface{}](c, "GET", testURL, nil)
+	builder.isMaybeSingle = true
+	c.session = &http.Client{
+		Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: 200,
+				Status:     "200 OK",
+				Body:       io.NopCloser(strings.NewReader(`{"id":`)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	response, err := builder.Execute(context.Background())
+
+	assert.Error(t, err)
+	assert.Nil(t, response)
+	assert.Contains(t, err.Error(), "error unmarshaling response")
+}
+
+func TestBuilder_Execute_DefaultResponseUnmarshalError(t *testing.T) {
+	c := NewClient("http://localhost:3000", "", nil)
+	c.session = &http.Client{
+		Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: 200,
+				Status:     "200 OK",
+				Body:       io.NopCloser(strings.NewReader(`{"id":`)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	response, err := c.From("users").Select("*", nil).Execute(context.Background())
+
+	assert.Error(t, err)
+	assert.Nil(t, response)
+	assert.Contains(t, err.Error(), "error unmarshaling response")
 }
 
 func TestBuilder_SetHeader(t *testing.T) {
@@ -865,5 +1380,97 @@ func TestFilterBuilder_MaybeSingle(t *testing.T) {
 	if mockResponses {
 		assert.NoError(t, err)
 		assert.NotNil(t, response)
+	}
+}
+
+func TestFilterBuilder_MaybeSingleWrapper(t *testing.T) {
+	t.Run("GET uses json accept and marks maybeSingle", func(t *testing.T) {
+		testURL, _ := url.Parse("http://localhost:3000/users")
+		builder := NewBuilder[map[string]interface{}](NewClient("http://localhost:3000", "", nil), "GET", testURL, nil)
+		fb := &FilterBuilder[map[string]interface{}]{Builder: builder}
+
+		result := fb.MaybeSingle()
+
+		assert.Same(t, builder, result)
+		assert.True(t, result.isMaybeSingle)
+		assert.Equal(t, "application/json", result.headers.Get("Accept"))
+	})
+
+	t.Run("non-GET uses object json accept and marks maybeSingle", func(t *testing.T) {
+		testURL, _ := url.Parse("http://localhost:3000/users")
+		builder := NewBuilder[map[string]interface{}](NewClient("http://localhost:3000", "", nil), "POST", testURL, nil)
+		fb := &FilterBuilder[map[string]interface{}]{Builder: builder}
+
+		result := fb.MaybeSingle()
+
+		assert.Same(t, builder, result)
+		assert.True(t, result.isMaybeSingle)
+		assert.Equal(t, "application/vnd.pgrst.object+json", result.headers.Get("Accept"))
+	})
+}
+
+func TestBuilder_Execute_MaybeSingle_ArrayBranches(t *testing.T) {
+	tests := []struct {
+		name         string
+		body         string
+		assertResult func(t *testing.T, response *PostgrestResponse[map[string]interface{}], err error)
+	}{
+		{
+			name: "returns 406 when array has multiple rows",
+			body: `[{"id":1},{"id":2}]`,
+			assertResult: func(t *testing.T, response *PostgrestResponse[map[string]interface{}], err error) {
+				assert.NoError(t, err)
+				assert.NotNil(t, response)
+				assert.NotNil(t, response.Error)
+				assert.Equal(t, "PGRST116", response.Error.Code)
+				assert.Equal(t, 406, response.Status)
+				assert.Equal(t, "Not Acceptable", response.StatusText)
+			},
+		},
+		{
+			name: "unmarshals the only row when array has one row",
+			body: `[{"id":1,"name":"sean","email":"sean@test.com"}]`,
+			assertResult: func(t *testing.T, response *PostgrestResponse[map[string]interface{}], err error) {
+				assert.NoError(t, err)
+				assert.NotNil(t, response)
+				assert.Nil(t, response.Error)
+				assert.Equal(t, "sean", response.Data["name"])
+				assert.Equal(t, "sean@test.com", response.Data["email"])
+			},
+		},
+		{
+			name: "returns null equivalent when array is empty",
+			body: `[]`,
+			assertResult: func(t *testing.T, response *PostgrestResponse[map[string]interface{}], err error) {
+				assert.NoError(t, err)
+				assert.NotNil(t, response)
+				assert.Nil(t, response.Error)
+				assert.Nil(t, response.Data)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := NewClient("http://localhost:3000", "", nil)
+			c.session = &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					return &http.Response{
+						StatusCode: 200,
+						Status:     "200 OK",
+						Body:       io.NopCloser(strings.NewReader(tt.body)),
+						Header:     make(http.Header),
+					}, nil
+				}),
+			}
+
+			testURL, _ := url.Parse("http://localhost:3000/users?select=*")
+			builder := NewBuilder[map[string]interface{}](c, "GET", testURL, nil)
+			builder.isMaybeSingle = true
+			builder.headers.Set("Accept", "application/json")
+
+			response, err := builder.Execute(context.Background())
+			tt.assertResult(t, response, err)
+		})
 	}
 }
